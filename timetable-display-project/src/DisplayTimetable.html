@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Display</title>
+    <link rel="stylesheet" href="../styles/styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="#">Timetable System</a>
+        <div class="navbar-nav">
+            <a href="AdminPanel.html" class="nav-link">Admin Panel</a>
+            <a href="AdminLogin.html" class="nav-link">Logout</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Time Table Fall Semester 2024</h1>
+        
+        <button id="debugBtn" onclick="console.log(timetableEntries); alert('Check console for entries');">Debug Entries</button>
+        
+        <div class="table-container">
+            <table class="table" id="timetableDisplay">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Session</th>
+                        <th>01:00-01:30</th>
+                        <th>01:30-02:00</th>
+                        <th>02:00-02:30</th>
+                        <th>02:30-03:00</th>
+                        <th>03:00-03:30</th>
+                        <th>03:30-04:00</th>
+                        <th>04:00-04:30</th>
+                        <th>04:30-05:00</th>
+                        <th>05:00-05:30</th>
+                        <th>05:30-06:00</th>
+                        <th>06:00-06:30</th>
+                        <th>06:30-07:00</th>
+                    </tr>
+                </thead>
+                <tbody id="timetableBody">
+                    <!-- Timetable will be dynamically generated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script src="../scripts/timetable.js"></script>
+    <script>
+        // Manually trigger display on load
+        window.addEventListener('load', function() {
+            setTimeout(displayTimetable, 500); // Wait a bit to ensure everything is loaded
+        });
+        
+    </script>
+</body>
+</html>

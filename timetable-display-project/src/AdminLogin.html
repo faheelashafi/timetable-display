@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Timetable System</title>
+    <link rel="stylesheet" href="../styles/styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Admin Login</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="forgot-password">
+                <a href="#" id="forgotPassword">Forgot password?</a>
+            </div>
+            <button type="submit" class="full-width">Login</button>
+        </form>
+        <div class="signup-prompt">
+            Don't have an account? <a href="#" id="signupLink">Sign up</a>
+        </div>
+    </div>
+    
+    <!-- Sign Up Modal -->
+    <div id="signupModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 20px; border-radius: 10px; width: 400px;">
+            <h3>Sign Up</h3>
+            <form id="signupForm">
+                <div class="form-group">
+                    <label for="newUsername">Username:</label>
+                    <input type="text" id="newUsername" name="newUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="newEmail">Email:</label>
+                    <input type="email" id="newEmail" name="newEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Password:</label>
+                    <input type="password" id="newPassword" name="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password:</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" id="cancelSignup" class="danger">Cancel</button>
+                    <button type="submit" class="success">Create Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Forgot Password Modal -->
+    <div id="forgotModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;">
+        <div style="background: white; padding: 20px; border-radius: 10px; width: 400px;">
+            <h3>Forgot Password</h3>
+            <form id="forgotForm">
+                <div class="form-group">
+                    <label for="emailRecover">Email:</label>
+                    <input type="email" id="emailRecover" name="emailRecover" required>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <button type="button" id="cancelForgot" class="danger">Cancel</button>
+                    <button type="submit" class="success">Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Default admin credentials
+        const DEFAULT_USERNAME = "admin";
+        const DEFAULT_PASSWORD = "password";
+        
+        // LocalStorage keys
+        const USERS_KEY = 'timetable_users';
+        
+        // DOM Elements
+        const loginForm = document.getElementById('loginForm');
+        const signupLink = document.getElementById('signupLink');
+        const signupModal = document.getElementById('signupModal');
+        const signupForm = document.getElementById('signupForm');
+        const cancelSignup = document.getElementById('cancelSignup');
+        const forgotPassword = document.getElementById('forgotPassword');
+        const forgotModal = document.getElementById('forgotModal');
+        const forgotForm = document.getElementById('forgotForm');
+        const cancelForgot = document.getElementById('cancelForgot');
+        
+        // Initialize users in localStorage if not exists
+        if (!localStorage.getItem(USERS_KEY)) {
+            // Create default admin user
+            const defaultUsers = [
+                { username: DEFAULT_USERNAME, password: DEFAULT_PASSWORD, email: 'admin@example.com' }
+            ];
+            localStorage.setItem(USERS_KEY, JSON.stringify(defaultUsers));
+        }
+        
+        // Login form submission
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Get users from localStorage
+            const users = JSON.parse(localStorage.getItem(USERS_KEY));
+            
+            // Check if user exists and password is correct
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                // Store login status and redirect to admin panel
+                sessionStorage.setItem('loggedIn', 'true');
+                sessionStorage.setItem('currentUser', username);
+                window.location.href = 'AdminPanel.html';
+            } else {
+                alert('Invalid username or password!');
+            }
+        });
+        
+        // Show signup modal
+        signupLink.addEventListener('click', () => {
+            signupModal.style.display = 'flex';
+        });
+        
+        // Hide signup modal
+        cancelSignup.addEventListener('click', () => {
+            signupModal.style.display = 'none';
+        });
+        
+        // Show forgot password modal
+        forgotPassword.addEventListener('click', () => {
+            forgotModal.style.display = 'flex';
+        });
+        
+        // Hide forgot password modal
+        cancelForgot.addEventListener('click', () => {
+            forgotModal.style.display = 'none';
+        });
+        
+        // Signup form submission
+        signupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('newUsername').value;
+            const email = document.getElementById('newEmail').value;
+            const password = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+            
+            // Get existing users
+            const users = JSON.parse(localStorage.getItem(USERS_KEY));
+            
+            // Check if username already exists
+            if (users.some(u => u.username === username)) {
+                alert('Username already exists!');
+                return;
+            }
+            
+            // Add new user
+            users.push({ username, password, email });
+            localStorage.setItem(USERS_KEY, JSON.stringify(users));
+            
+            alert('Account created successfully! You can now login.');
+            signupModal.style.display = 'none';
+        });
+        
+        // Forgot password form submission
+        forgotForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('emailRecover').value;
+            
+            // Get users
+            const users = JSON.parse(localStorage.getItem(USERS_KEY));
+            
+            // Check if email exists
+            const user = users.find(u => u.email === email);
+            
+            if (user) {
+                alert(`Password recovery email sent to ${email}`);
+                // In a real app, this would send an email with recovery instructions
+                forgotModal.style.display = 'none';
+            } else {
+                alert('Email address not found!');
+            }
+        });
+    </script>
+</body>
+</html>
