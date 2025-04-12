@@ -4,50 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timetable Display</title>
-    <link rel="stylesheet" href="/styles/styles.css">
-    <style>
-        /* Additional inline styles for the timetable */
-        .timetable {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        
-        .timetable th, .timetable td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-        }
-        
-        .timetable th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        
-        .timetable .day-cell {
-            font-weight: bold;
-            background-color: #d9edf7;
-        }
-        
-        .timetable .session-cell {
-            font-weight: bold;
-            background-color: #f9f2f4;
-        }
-        
-        .timetable .course-cell {
-            background-color: #dff0d8;
-            font-weight: bold;
-            color: #3c763d;
-        }
-    </style>
+    <link rel="stylesheet" href="../styles/styles.css">
 </head>
 <body>
     <!-- Navigation -->
     <nav class="navbar">
         <a class="navbar-brand" href="#">Timetable System</a>
         <div class="navbar-nav">
-            <a href="AdminPanel.html" class="nav-link">Admin Panel</a>
-            <a href="AdminLogin.html" class="nav-link">Logout</a>
+            <a href="/admin" class="nav-link">Admin Panel</a>
+            <a href="/admin" class="nav-link">Logout</a>
         </div>
     </nav>
 
@@ -61,7 +26,7 @@
 
     <!-- Timetable -->
     <div class="table-container">
-        <table class="timetable" id="timetableDisplay">
+        <table class="table" id="timetableDisplay">
             <thead>
                 <tr>
                     <th>Day</th>
@@ -86,27 +51,15 @@
         </table>
     </div>
 
-    <!-- Load the JS file -->
-    <script src="/scripts/timetable.js"></script>
+    <!-- Load the timetable.js script -->
+    <script src="../scripts/timetable.js"></script>
     
-    <!-- Simple timetable renderer -->
     <script>
-        // Add this at the top of your inline script
+        // Render the timetable when the page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Debug div to show information
-            const debugDiv = document.createElement('div');
-            debugDiv.style.margin = '20px';
-            debugDiv.style.padding = '10px';
-            debugDiv.style.backgroundColor = '#f8f9fa';
-            debugDiv.style.border = '1px solid #ddd';
-            debugDiv.style.display = 'none'; // Hide by default, set to 'block' to show
-
             // Get timetable entries from localStorage
             const timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-            debugDiv.innerHTML += `<p>Entries found: ${timetableEntries.length}</p>`;
-            debugDiv.innerHTML += `<pre>${JSON.stringify(timetableEntries, null, 2)}</pre>`;
-            
-            // Rest of your existing code...
+            console.log('Entries loaded:', timetableEntries);
             
             // Get the table body
             const tableBody = document.getElementById('timetableBody');
@@ -171,7 +124,6 @@
                         
                         // Find an entry for this time slot
                         const entry = sessionEntries.find(e => {
-                            // Fix time conversion to handle both 24h and 12h format
                             const startMinutes = convertToMinutes(e.startTime);
                             const endMinutes = convertToMinutes(e.endTime);
                             const slotMinutes = convertToMinutes(timeSlot);
@@ -216,16 +168,12 @@
                 const minutes = parseInt(parts[1] || 0);
                 
                 // If hours is between 1 and 7, assume it's PM (13:00 - 19:00)
-                // This is specific to your timetable which runs from 1pm to 7pm
                 if (hours >= 1 && hours <= 7 && parts[0].length === 2) {
                     hours += 12;
                 }
                 
                 return hours * 60 + minutes;
             }
-            
-            document.body.appendChild(debugDiv);
-            console.log('Timetable rendered successfully');
         });
     </script>
 </body>

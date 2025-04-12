@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Login - Timetable System</title>
-    <link rel="stylesheet" href="/styles/styles.css">
+    <link rel="stylesheet" href="../styles/styles.css">
+    <script src="../scripts/timetable.js"></script>
 </head>
 <body>
     <div class="login-container">
         <h2>Admin Login</h2>
-        <form id="loginForm">
+        <form id="loginForm" action="/panel" method="get">
             <div class="form-group">
                 <label for="username">Username:</label>
                 <input type="text" id="username" name="username" required>

@@ -13,7 +13,7 @@ timetable-display-project
 ├── styles
 │   └── styles.css            # CSS styles for the project
 ├── scripts
-│   └── timetable.java        # Java code for handling timetable logic
+│   └── timetable.js          # JavaScript code for handling timetable logic
 └── README.md                 # Project documentation
 ```
 
@@ -40,7 +40,7 @@ timetable-display-project
 ## Technologies Used
 - HTML
 - CSS
-- Java
+- JavaScript
 
 ## Contributing
 Feel free to fork the repository and submit pull requests for any improvements or features you would like to add.
