@@ -4,7 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timetable Display</title>
-    <link rel="stylesheet" href="../styles/styles.css">
+    <link rel="stylesheet" href="/styles/styles.css">
+    <style>
+        /* Additional inline styles for the timetable */
+        .timetable {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .timetable th, .timetable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .timetable th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .timetable .day-cell {
+            font-weight: bold;
+            background-color: #d9edf7;
+        }
+        
+        .timetable .session-cell {
+            font-weight: bold;
+            background-color: #f9f2f4;
+        }
+        
+        .timetable .course-cell {
+            background-color: #dff0d8;
+            font-weight: bold;
+            color: #3c763d;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -16,45 +51,182 @@
         </div>
     </nav>
 
-    <div class="container">
+    <!-- Timetable Header -->
+    <div class="timetable-header">
         <h1>Time Table Fall Semester 2024</h1>
-        
-        <button id="debugBtn" onclick="console.log(timetableEntries); alert('Check console for entries');">Debug Entries</button>
-        
-        <div class="table-container">
-            <table class="table" id="timetableDisplay">
-                <thead>
-                    <tr>
-                        <th>Day</th>
-                        <th>Session</th>
-                        <th>01:00-01:30</th>
-                        <th>01:30-02:00</th>
-                        <th>02:00-02:30</th>
-                        <th>02:30-03:00</th>
-                        <th>03:00-03:30</th>
-                        <th>03:30-04:00</th>
-                        <th>04:00-04:30</th>
-                        <th>04:30-05:00</th>
-                        <th>05:00-05:30</th>
-                        <th>05:30-06:00</th>
-                        <th>06:00-06:30</th>
-                        <th>06:30-07:00</th>
-                    </tr>
-                </thead>
-                <tbody id="timetableBody">
-                    <!-- Timetable will be dynamically generated here -->
-                </tbody>
-            </table>
-        </div>
+        <h2>DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY</h2>
+        <h3>University of Chakwal</h3>
+        <h4>BSIT - 1st, 3rd, 5th, 7th Semester (Evening): 30-09-2024</h4>
     </div>
+
+    <!-- Timetable -->
+    <div class="table-container">
+        <table class="timetable" id="timetableDisplay">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Session</th>
+                    <th>01:00-01:30</th>
+                    <th>01:30-02:00</th>
+                    <th>02:00-02:30</th>
+                    <th>02:30-03:00</th>
+                    <th>03:00-03:30</th>
+                    <th>03:30-04:00</th>
+                    <th>04:00-04:30</th>
+                    <th>04:30-05:00</th>
+                    <th>05:00-05:30</th>
+                    <th>05:30-06:00</th>
+                    <th>06:00-06:30</th>
+                    <th>06:30-07:00</th>
+                </tr>
+            </thead>
+            <tbody id="timetableBody">
+                <!-- Timetable will be dynamically generated here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Load the JS file -->
+    <script src="/scripts/timetable.js"></script>
     
-    <script src="../scripts/timetable.js"></script>
+    <!-- Simple timetable renderer -->
     <script>
-        // Manually trigger display on load
-        window.addEventListener('load', function() {
-            setTimeout(displayTimetable, 500); // Wait a bit to ensure everything is loaded
+        // Add this at the top of your inline script
+        document.addEventListener('DOMContentLoaded', function() {
+            // Debug div to show information
+            const debugDiv = document.createElement('div');
+            debugDiv.style.margin = '20px';
+            debugDiv.style.padding = '10px';
+            debugDiv.style.backgroundColor = '#f8f9fa';
+            debugDiv.style.border = '1px solid #ddd';
+            debugDiv.style.display = 'none'; // Hide by default, set to 'block' to show
+
+            // Get timetable entries from localStorage
+            const timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+            debugDiv.innerHTML += `<p>Entries found: ${timetableEntries.length}</p>`;
+            debugDiv.innerHTML += `<pre>${JSON.stringify(timetableEntries, null, 2)}</pre>`;
+            
+            // Rest of your existing code...
+            
+            // Get the table body
+            const tableBody = document.getElementById('timetableBody');
+            
+            // Clear existing content
+            tableBody.innerHTML = '';
+            
+            // If no entries, show a message
+            if (timetableEntries.length === 0) {
+                const emptyRow = document.createElement('tr');
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = 14;
+                emptyCell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
+                emptyCell.style.textAlign = 'center';
+                emptyCell.style.padding = '20px';
+                emptyRow.appendChild(emptyCell);
+                tableBody.appendChild(emptyRow);
+                return;
+            }
+            
+            // Group entries by day and session
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            const timeSlots = [
+                '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+                '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
+            ];
+            
+            // Process each day
+            days.forEach(day => {
+                const dayEntries = timetableEntries.filter(entry => entry.day === day);
+                if (dayEntries.length === 0) return;
+                
+                // Get unique sessions for this day
+                const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+                
+                // For each session, create a row
+                sessions.forEach((session, sessionIndex) => {
+                    const row = document.createElement('tr');
+                    
+                    // Add day cell (only for first session in the day)
+                    if (sessionIndex === 0) {
+                        const dayCell = document.createElement('td');
+                        dayCell.className = 'day-cell';
+                        dayCell.textContent = day;
+                        dayCell.rowSpan = sessions.length;
+                        row.appendChild(dayCell);
+                    }
+                    
+                    // Add session cell
+                    const sessionCell = document.createElement('td');
+                    sessionCell.className = 'session-cell';
+                    sessionCell.textContent = session;
+                    row.appendChild(sessionCell);
+                    
+                    // Get entries for this session
+                    const sessionEntries = dayEntries.filter(entry => entry.session === session);
+                    
+                    // Add cells for each time slot
+                    let slotIndex = 0;
+                    while (slotIndex < timeSlots.length) {
+                        const timeSlot = timeSlots[slotIndex];
+                        
+                        // Find an entry for this time slot
+                        const entry = sessionEntries.find(e => {
+                            // Fix time conversion to handle both 24h and 12h format
+                            const startMinutes = convertToMinutes(e.startTime);
+                            const endMinutes = convertToMinutes(e.endTime);
+                            const slotMinutes = convertToMinutes(timeSlot);
+                            return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+                        });
+                        
+                        if (entry) {
+                            // Calculate how many slots this entry spans
+                            const startMinutes = convertToMinutes(entry.startTime);
+                            const endMinutes = convertToMinutes(entry.endTime);
+                            const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
+                            
+                            // Create the cell for this entry
+                            const cell = document.createElement('td');
+                            cell.className = 'course-cell';
+                            cell.textContent = entry.course;
+                            cell.colSpan = spanCount;
+                            row.appendChild(cell);
+                            
+                            // Skip ahead by the span count
+                            slotIndex += spanCount;
+                        } else {
+                            // Empty cell
+                            const cell = document.createElement('td');
+                            row.appendChild(cell);
+                            slotIndex++;
+                        }
+                    }
+                    
+                    // Add the row to the table
+                    tableBody.appendChild(row);
+                });
+            });
+            
+            // Helper function to convert time to minutes
+            function convertToMinutes(timeString) {
+                if (!timeString) return 0;
+                
+                // Handle both 24-hour (13:00) and 12-hour (01:00) formats
+                const parts = timeString.split(':');
+                let hours = parseInt(parts[0]);
+                const minutes = parseInt(parts[1] || 0);
+                
+                // If hours is between 1 and 7, assume it's PM (13:00 - 19:00)
+                // This is specific to your timetable which runs from 1pm to 7pm
+                if (hours >= 1 && hours <= 7 && parts[0].length === 2) {
+                    hours += 12;
+                }
+                
+                return hours * 60 + minutes;
+            }
+            
+            document.body.appendChild(debugDiv);
+            console.log('Timetable rendered successfully');
         });
-        
     </script>
 </body>
 </html>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Timetable System</title>
-    <link rel="stylesheet" href="../styles/styles.css">
+    <link rel="stylesheet" href="/styles/styles.css">
     <!-- Add jsPDF library for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -40,9 +40,25 @@
             <button id="updateSessionsBtn">Update Available Sessions</button>
         </div>
         
-        <form id="timetableForm">
-            <h3>Add New Timetable Entry</h3>
-            <div class="admin-controls">
+        <div id="adminPanel">
+            <h1>Admin Timetable Management</h1>
+
+            <!-- Add New Entry Section -->
+            <form id="timetableForm">
+                <h3>Add New Timetable Entry</h3>
+                <div class="input-group">
+                    <label for="session">Select Week:</label>
+                    <select id="session" name="session" required>
+                        <option value="1">Week 1</option>
+                        <option value="2">Week 2</option>
+                        <option value="3">Week 3</option>
+                        <option value="4">Week 4</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="courseName">Course Name:</label>
+                    <input type="text" id="courseName" name="courseName" required placeholder="e.g., CS-101">
+                </div>
                 <div class="input-group">
                     <label>Select Days:</label>
                     <div class="checkbox-group">
@@ -52,19 +68,6 @@
                         <label><input type="checkbox" name="day" value="Thursday"> Thursday</label>
                         <label><input type="checkbox" name="day" value="Friday"> Friday</label>
                     </div>
-                </div>
-                <div class="input-group">
-                    <label for="session">Session (Year):</label>
-                    <select id="session" name="session" required>
-                        <option value="2021">2021</option>
-                        <option value="2022">2022</option>
-                        <option value="2023">2023</option>
-                        <option value="2024">2024</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="courseName">Course Name:</label>
-                    <input type="text" id="courseName" name="courseName" required placeholder="e.g., CS-101">
                 </div>
                 <div class="input-group time-slots">
                     <label>Time Slot:</label>
@@ -79,32 +82,34 @@
                         </div>
                     </div>
                 </div>
+                <button type="submit">Add Entry</button>
+            </form>
+
+            <!-- Entries Section -->
+            <div class="entries-section">
+                <h3>Current Timetable Entries</h3>
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Day</th>
+                                <th>Session</th>
+                                <th>Course</th>
+                                <th>Time Slot</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entriesList">
+                            <!-- Entries will be dynamically generated here -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <button type="submit">Add Entry</button>
-        </form>
+        </div>
 
         <div class="button-container">
             <button id="generatePdf" class="pdf-btn">Generate PDF</button>
             <button id="clearAllEntries" class="danger">Delete All Entries</button>
-        </div>
-
-        <!-- Added section to display and manage entries -->
-        <div class="table-container entries-section">
-            <h2>Current Timetable Entries</h2>
-            <table class="table" id="entriesTable">
-                <thead>
-                    <tr>
-                        <th>Day</th>
-                        <th>Session</th>
-                        <th>Course</th>
-                        <th>Time Slot</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="entriesList">
-                    <!-- Entries will be dynamically loaded here -->
-                </tbody>
-            </table>
         </div>
     </div>
 
@@ -117,6 +122,6 @@
     </script>
     
     <!-- Changed from timetable.java to timetable.js since we need JavaScript, not Java for browser -->
-    <script src="../scripts/timetable.js"></script>
+    <script src="/scripts/timetable.js"></script>
 </body>
 </html>

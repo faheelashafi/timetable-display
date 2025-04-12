@@ -3,8 +3,7 @@ function checkLogin() {
     if (window.location.href.includes('AdminPanel.html')) {
         const loggedIn = sessionStorage.getItem('loggedIn');
         if (loggedIn !== 'true') {
-            // Redirect to login page
-            window.location.href = 'AdminLogin.html';
+            window.location.href = 'AdminLogin.html'; // Redirect to login page
         }
     }
 }
@@ -17,21 +16,49 @@ function saveEntries() {
     localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
 }
 
-// Add a new entry 
+// Add a new entry
 function addEntry(day, session, course, timeSlot, startTime, endTime) {
+    // Check for conflicts
+    const conflictingEntry = timetableEntries.find(entry =>
+        entry.day === day &&
+        entry.session === session &&
+        ((startTime >= entry.startTime && startTime < entry.endTime) ||
+         (endTime > entry.startTime && endTime <= entry.endTime) ||
+         (startTime <= entry.startTime && endTime >= entry.endTime))
+    );
+
+    if (conflictingEntry) {
+        if (!confirm(`A course (${conflictingEntry.course}) already exists for ${day} at this time slot. Do you want to replace it?`)) {
+            return null; // Do not add the new entry
+        }
+        // Remove the conflicting entry
+        deleteEntry(conflictingEntry.id);
+    }
+
+    // Create the new entry
     const entry = {
-        id: Date.now(), // Generate unique ID based on timestamp
-        day: day,
-        session: session,
-        course: course,
-        timeSlot: timeSlot,
+        id: Date.now(),
+        day,
+        session,
+        course,
+        timeSlot,
+        startTime,
+        endTime,
+        displayTimeSlot: `${startTime}-${endTime}`,
+    };
+
+    console.log('Adding entry with times:', {
         startTime: startTime,
         endTime: endTime,
-        displayTimeSlot: `${timeSlot}-${formatTimeFromInput(endTime)}`
-    };
-    
+        startTimeFormat: typeof startTime,
+        endTimeFormat: typeof endTime
+    });
+
+    // Add the entry to the array and save it
     timetableEntries.push(entry);
     saveEntries();
+    console.log('Entry Added:', entry); // Debugging
+    console.log('All entries:', timetableEntries); // Debug all entries
     return entry;
 }
 
@@ -125,7 +152,7 @@ function displayEntriesInAdmin() {
         const sessionComparison = a.session - b.session;
         if (sessionComparison !== 0) return sessionComparison;
         
-        return a.timeSlot.localeCompare(b.timeSlot);
+        return a.startTime.localeCompare(b.startTime);
     });
     
     sortedEntries.forEach(entry => {
@@ -141,35 +168,7 @@ function displayEntriesInAdmin() {
         courseCell.textContent = entry.course;
         
         const timeCell = document.createElement('td');
-        
-        // Use the custom display time slot if available, otherwise generate it
-        if (entry.displayTimeSlot) {
-            timeCell.textContent = entry.displayTimeSlot;
-        } else {
-            // Handle legacy entries without displayTimeSlot
-            const startFormatted = formatTimeFromInput(entry.startTime || '01:00');
-            const endFormatted = entry.endTime ? formatTimeFromInput(entry.endTime) : '';
-            
-            if (endFormatted) {
-                timeCell.textContent = `${startFormatted}-${endFormatted}`;
-            } else {
-                // Legacy format
-                const timeSlotHour = entry.timeSlot;
-                const timeSlotParts = timeSlotHour.split(':');
-                const hour = parseInt(timeSlotParts[0]);
-                const minute = parseInt(timeSlotParts[1]);
-                
-                let endMinute = minute + 30;
-                let endHour = hour;
-                if (endMinute >= 60) {
-                    endMinute -= 60;
-                    endHour += 1;
-                }
-                
-                const endTimeStr = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
-                timeCell.textContent = `${timeSlotHour}-${endTimeStr}`;
-            }
-        }
+        timeCell.textContent = entry.displayTimeSlot;
         
         const actionCell = document.createElement('td');
         const deleteButton = document.createElement('button');
@@ -192,18 +191,24 @@ function displayEntriesInAdmin() {
     });
 }
 
-// Fix the bug in the displayTimetable function
+// Fix the displayTimetable function to handle time slots correctly
 
-function displayTimetable() {
-    // Only run on DisplayTimetable.html
-    if (!window.location.href.includes('DisplayTimetable.html')) return;
+// Display timetable on the DisplayTimetable.html page
+function XdisplayTimetable() {
+    console.log('displayTimetable function called');
+    const timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+    console.log('Loaded timetable entries:', timetableEntries);
 
     const tableBody = document.getElementById('timetableBody');
-    if (!tableBody) return;
-    
+    if (!tableBody) {
+        console.error('Error: Table body element not found!');
+        return;
+    }
+
     // Clear existing content
     tableBody.innerHTML = '';
-    
+
+    // Handle empty entries
     if (timetableEntries.length === 0) {
         const emptyRow = document.createElement('tr');
         const emptyCell = document.createElement('td');
@@ -215,148 +220,78 @@ function displayTimetable() {
         tableBody.appendChild(emptyRow);
         return;
     }
-    
-    console.log('Timetable entries:', timetableEntries); // Add debug output
 
-    // Group entries by day and session
-    const entriesByDayAndSession = {};
-    
-    // Initialize structure
+    // Group entries by day
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
-    
+    const timeSlots = [
+        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
+    ];
+
     days.forEach(day => {
-        entriesByDayAndSession[day] = {};
+        const dayEntries = timetableEntries.filter(entry => entry.day === day);
+
+        if (dayEntries.length === 0) return;
+
+        // Group entries by session
+        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+
         sessions.forEach(session => {
-            entriesByDayAndSession[day][session] = [];
-        });
-    });
-    
-    // Populate with entries
-    timetableEntries.forEach(entry => {
-        // Fix the bug here - previously using wrong variable name
-        if (entriesByDayAndSession[entry.day]) {
-            if (!entriesByDayAndSession[entry.day][entry.session]) {
-                entriesByDayAndSession[entry.day][entry.session] = [];
-            }
-            entriesByDayAndSession[entry.day][entry.session].push(entry);
-        }
-    });
-    
-    console.log('Grouped entries:', entriesByDayAndSession); // Debug output
-    
-    // Create rows for each day and session
-    days.forEach(day => {
-        // Filter sessions that actually have entries for this day
-        const activeSessions = sessions.filter(session => 
-            entriesByDayAndSession[day] && 
-            entriesByDayAndSession[day][session] && 
-            entriesByDayAndSession[day][session].length > 0
-        );
-        
-        if (activeSessions.length === 0) return; // Skip days with no entries
-        
-        let isFirstRowForDay = true;
-        
-        activeSessions.forEach(session => {
-            const entries = entriesByDayAndSession[day][session];
+            const sessionEntries = dayEntries.filter(entry => entry.session === session);
+
             const row = document.createElement('tr');
-            
-            // Add day cell for first row of each day
-            if (isFirstRowForDay) {
+
+            // Add day cell for the first session of the day
+            if (sessions.indexOf(session) === 0) {
                 const dayCell = document.createElement('td');
-                dayCell.className = 'day';
-                dayCell.rowSpan = activeSessions.length;
+                dayCell.rowSpan = sessions.length;
                 dayCell.textContent = day;
+                dayCell.style.fontWeight = 'bold';
+                dayCell.style.backgroundColor = '#f8f9fa';
                 row.appendChild(dayCell);
-                isFirstRowForDay = false;
             }
-            
+
             // Add session cell
             const sessionCell = document.createElement('td');
-            sessionCell.className = 'session';
             sessionCell.textContent = session;
+            sessionCell.style.fontWeight = 'bold';
+            sessionCell.style.backgroundColor = '#f1f1f1';
             row.appendChild(sessionCell);
-            
-            // Initialize cells array to track which cells are already filled
-            const cellsFilled = new Array(14).fill(false); // 14 columns including day and session
-            cellsFilled[0] = true; // Day column is filled (or skipped for non-first rows)
-            cellsFilled[1] = true; // Session column is filled
-            
-            // Sort entries by start time to ensure proper order
-            const sortedEntries = [...entries].sort((a, b) => {
-                // Sort by converting time to minutes for comparison
-                const aTime = a.startTime.split(':').map(Number);
-                const bTime = b.startTime.split(':').map(Number);
-                return (aTime[0] * 60 + aTime[1]) - (bTime[0] * 60 + bTime[1]);
-            });
-            
-            console.log(`Sorted entries for ${day}, ${session}:`, sortedEntries); // Debug output
-            
-            // Time slot mapping (12-hour format to column index)
-            const timeSlotToColumn = {
-                "01:00": 2, "01:30": 3, "02:00": 4, "02:30": 5,
-                "03:00": 6, "03:30": 7, "04:00": 8, "04:30": 9,
-                "05:00": 10, "05:30": 11, "06:00": 12, "06:30": 13
-            };
-            
-            // Create cells for all time slots
-            for (let i = 2; i <= 13; i++) {
-                // Skip if cell already filled by a spanning entry
-                if (cellsFilled[i]) continue;
-                
-                // Find corresponding time slot
-                const timeSlotHour = Object.keys(timeSlotToColumn).find(key => timeSlotToColumn[key] === i);
-                
-                // Find an entry that starts at this time slot
-                const entry = sortedEntries.find(e => {
-                    // Convert 24h time to 12h time for comparison
-                    const convertTo12h = time => {
-                        const [hours, minutes] = time.split(':');
-                        let h = parseInt(hours);
-                        if (h > 12) h -= 12;
-                        if (h === 0) h = 12;
-                        return `${h.toString().padStart(2, '0')}:${minutes}`;
-                    };
-                    
-                    const entry12hTime = convertTo12h(e.startTime);
-                    return entry12hTime === timeSlotHour;
+
+            // Add time slot cells
+            let cellIndex = 0;
+            while (cellIndex < timeSlots.length) {
+                const timeSlot = timeSlots[cellIndex];
+                const entry = sessionEntries.find(e => {
+                    const startMinutes = parseInt(e.startTime.split(':')[0]) * 60 + parseInt(e.startTime.split(':')[1]);
+                    const endMinutes = parseInt(e.endTime.split(':')[0]) * 60 + parseInt(e.endTime.split(':')[1]);
+                    const slotMinutes = parseInt(timeSlot.split(':')[0]) * 60 + parseInt(timeSlot.split(':')[1]);
+                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
                 });
-                
+
                 if (entry) {
-                    // Calculate span based on start and end time
-                    const startParts = entry.startTime.split(':').map(Number);
-                    const endParts = entry.endTime.split(':').map(Number);
-                    
-                    const startMinutes = startParts[0] * 60 + startParts[1];
-                    const endMinutes = endParts[0] * 60 + endParts[1];
-                    
-                    // Each cell is 30 minutes
+                    const startMinutes = parseInt(entry.startTime.split(':')[0]) * 60 + parseInt(entry.startTime.split(':')[1]);
+                    const endMinutes = parseInt(entry.endTime.split(':')[0]) * 60 + parseInt(entry.endTime.split(':')[1]);
                     const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-                    
-                    // Create cell with colspan
+
                     const cell = document.createElement('td');
                     cell.className = 'has-course';
-                    cell.colSpan = spanCount;
                     cell.textContent = entry.course;
-                    
-                    // Add to row
+                    cell.colSpan = spanCount;
+                    cell.style.backgroundColor = '#e9ecef';
+                    cell.style.textAlign = 'center';
                     row.appendChild(cell);
-                    
-                    // Mark these cells as filled
-                    for (let j = 0; j < spanCount; j++) {
-                        if (i + j <= 13) {
-                            cellsFilled[i + j] = true;
-                        }
-                    }
-                } else if (!cellsFilled[i]) {
+
+                    // Skip ahead by the number of slots this entry spans
+                    cellIndex += spanCount;
+                } else {
                     // Empty cell
                     const cell = document.createElement('td');
                     row.appendChild(cell);
-                    cellsFilled[i] = true;
+                    cellIndex++;
                 }
             }
-            
+
             tableBody.appendChild(row);
         });
     });
@@ -566,11 +501,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Display entries in admin panel
     displayEntriesInAdmin();
     
-    // Display timetable on display page
-    displayTimetable();
-    
-    // Display timetable on display page
-    displayTimetable();
+    // COMMENT OUT THIS LINE to avoid conflicts with inline script
+    // displayTimetable();
+    // console.log('Timetable Entries Loaded:', timetableEntries);
 });
 
 // Helper function to format time from input
@@ -582,3 +515,9 @@ function formatTimeFromInput(timeStr) {
     const minute = minutes;
     return `${hour.toString().padStart(2, '0')}:${minute}`;
 }
+
+// Also comment out this window.load event handler
+// window.addEventListener('load', function () {
+//     console.log('Display Timetable Function Called'); // Debugging
+//     displayTimetable();
+// });

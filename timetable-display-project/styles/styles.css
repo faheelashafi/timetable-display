@@ -9,13 +9,29 @@
     --text-color: #3c4043;
 }
 
+/* General Styles */
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: var(--light-bg);
-    color: var(--text-color);
-    line-height: 1.6;
+    background-color: #f8f9fa;
+    color: #333;
+    text-align: center;
+}
+
+header {
+    margin-bottom: 20px;
+}
+
+header h1 {
+    font-size: 2em;
+    margin: 10px 0;
+    color: #333;
+}
+
+header h2, header h3, header h4 {
+    margin: 5px 0;
+    color: #555;
 }
 
 .container {
@@ -143,59 +159,62 @@ button.success:hover {
 
 /* Table Styles */
 .table-container {
-    width: 100%;
     margin: 20px auto;
+    width: 90%;
     overflow-x: auto;
     background: #fff;
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 14px;
+    margin: 20px 0;
+    font-size: 16px;
+    text-align: left;
 }
 
 .table th, .table td {
-    border: 1px solid var(--border-color);
-    padding: 12px;
-    text-align: center;
+    border: 1px solid #ddd;
+    padding: 8px;
 }
 
 .table th {
-    background-color: var(--primary-color);
+    background-color: #007bff;
     color: white;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.table tr:nth-child(even) {
-    background-color: rgba(0, 0, 0, 0.02);
-}
-
-.table tr:hover {
-    background-color: rgba(66, 133, 244, 0.05);
-}
-
-.table .day {
-    font-weight: 600;
-    background-color: var(--secondary-color);
-    color: white;
-}
-
-.table .session {
-    font-weight: 600;
-    background-color: rgba(66, 133, 244, 0.1);
+    text-align: center;
 }
 
 .table td.has-course {
-    font-weight: 500;
-    background-color: rgba(251, 188, 5, 0.1);
+    background-color: #e9ecef;
+    font-weight: bold;
+    text-align: center;
+}
+
+.table .day {
+    background-color: #d9edf7;
+    font-weight: bold;
+}
+
+.table .session {
+    background-color: #f9f2f4;
+    font-weight: bold;
+}
+
+.table td.has-course {
+    background-color: #dff0d8;
+    font-weight: bold;
+    color: #3c763d;
+}
+
+.table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.table tr:hover {
+    background-color: #f1f1f1;
 }
 
 /* Admin Panel Styles */
@@ -337,4 +356,280 @@ button.success:hover {
 
 .time-input-group label {
     margin-top: 0;
+}
+
+/* Timetable Container - Full Screen */
+.table-container {
+    width: 95%; /* Adjusted to fit within the screen */
+    margin: 0 auto; /* Center the container */
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow-x: auto; /* Allow horizontal scrolling if needed */
+}
+
+/* Timetable Table */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    text-align: center;
+}
+
+.table th, .table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+}
+
+.table th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+.table .day {
+    background-color: #d9edf7;
+    font-weight: bold;
+}
+
+.table .session {
+    background-color: #f9f2f4;
+    font-weight: bold;
+}
+
+.table td.has-course {
+    background-color: #dff0d8;
+    font-weight: bold;
+    color: #3c763d;
+}
+
+.table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.table tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Timetable Header */
+.timetable-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.timetable-header h1 {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 10px 0;
+    color: #333;
+}
+
+.timetable-header h2 {
+    font-size: 20px;
+    font-weight: bold;
+    margin: 5px 0;
+    color: #555;
+}
+
+.timetable-header h3 {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 5px 0;
+    color: #777;
+}
+
+.timetable-header h4 {
+    font-size: 16px;
+    font-weight: normal;
+    margin: 5px 0;
+    color: #999;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .table {
+        font-size: 12px; /* Adjust font size for smaller screens */
+    }
+
+    .table th, .table td {
+        padding: 10px; /* Reduce padding for smaller screens */
+    }
+}
+
+/* Admin Panel Styles */
+#adminPanel {
+    background-color: #f8f9fa; /* Light background for the entire panel */
+    padding: 20px;
+    min-height: 100vh; /* Full height */
+}
+
+#adminPanel h1 {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--primary-color);
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* Add New Entry Container */
+#timetableForm {
+    background: white;
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    margin: 0 auto;
+    max-width: 800px;
+    text-align: left;
+}
+
+#timetableForm h3 {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Input Group Styles */
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+    display: block;
+}
+
+.input-group input, .input-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+.input-group input:focus, .input-group select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 8px;
+    width: auto;
+}
+
+/* Time Input Group */
+.time-input-group {
+    display: flex;
+    gap: 20px;
+}
+
+.time-input-group > div {
+    flex: 1;
+}
+
+.time-input-group label {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Button Styles */
+#timetableForm button {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: bold;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin-top: 20px;
+}
+
+#timetableForm button:hover {
+    background-color: #3367d6;
+    transform: translateY(-2px);
+}
+
+/* Entries Section */
+.entries-section {
+    margin-top: 40px;
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.entries-section h3 {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    #timetableForm {
+        padding: 20px;
+    }
+
+    .time-input-group {
+        flex-direction: column;
+    }
+
+    #timetableForm button {
+        font-size: 14px;
+    }
+}
+
+/* Configure Available Sessions Container */
+#sessionConfig {
+    background: white;
+    padding: 40px; /* Same padding as Add New Timetable Entry */
+    border-radius: 15px; /* Rounded corners for consistency */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); /* Same shadow as Add New Timetable Entry */
+    margin: 0 auto; /* Center the container */
+    max-width: 800px; /* Same max width */
+    text-align: left; /* Align text to the left */
+}
+
+#sessionConfig h3 {
+    font-size: 24px; /* Same font size as Add New Timetable Entry heading */
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Hide the debug information section */
+#debugInfo {
+    display: none;
 }
