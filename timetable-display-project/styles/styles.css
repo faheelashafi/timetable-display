@@ -1,12 +1,17 @@
+/* Enhanced Timetable Styling */
+
+/* Modern color palette */
 :root {
-    --primary-color: #4285f4;
-    --secondary-color: #34a853;
-    --accent-color: #fbbc05;
-    --danger-color: #ea4335;
-    --light-bg: #f8f9fa;
-    --dark-bg: #202124;
-    --border-color: #dadce0;
-    --text-color: #3c4043;
+    --primary-color: #3498db;
+    --secondary-color: #2ecc71;
+    --accent-color: #e74c3c;
+    --header-bg: #34495e;
+    --day-bg: #d6eaf8;
+    --session-bg: #eaecee;
+    --course-bg: #d5f5e3;
+    --course-alt-bg: #82e0aa;
+    --hover-bg: #f9f9f9;
+    --border-color: #bdc3c7;
 }
 
 /* General Styles */
@@ -159,62 +164,125 @@ button.success:hover {
 
 /* Table Styles */
 .table-container {
-    margin: 20px auto;
-    width: 90%;
-    overflow-x: auto;
+    margin: 30px auto;
+    width: 95%;
     background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
 }
 
 .table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     margin: 20px 0;
-    font-size: 16px;
-    text-align: left;
-}
-
-.table th, .table td {
-    border: 1px solid #ddd;
-    padding: 8px;
+    font-size: 15px;
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .table th {
-    background-color: #007bff;
+    background-color: var(--header-bg);
     color: white;
+    padding: 12px 8px;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid var(--header-bg);
+    position: relative;
+}
+
+.table td {
+    padding: 10px 8px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.table .day-cell, 
+td:first-child {
+    background-color: var(--day-bg);
+    font-weight: 600;
+    color: #2c3e50;
     text-align: center;
 }
 
-.table td.has-course {
-    background-color: #e9ecef;
-    font-weight: bold;
+.table .session-cell {
+    background-color: var(--session-bg);
+    font-weight: 600;
+    color: #34495e;
     text-align: center;
 }
 
-.table .day {
-    background-color: #d9edf7;
-    font-weight: bold;
-}
-
-.table .session {
-    background-color: #f9f2f4;
-    font-weight: bold;
-}
-
+.table td.course-cell,
 .table td.has-course {
-    background-color: #dff0d8;
-    font-weight: bold;
-    color: #3c763d;
+    background: linear-gradient(to bottom, var(--course-bg), var(--course-alt-bg));
+    font-weight: 600;
+    color: #216a42;
+    text-align: center;
+    border: 1px solid #27ae60;
+    box-shadow: inset 0 0 5px rgba(46, 204, 113, 0.2);
 }
 
 .table tr:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #f8f9fa;
 }
 
 .table tr:hover {
-    background-color: #f1f1f1;
+    background-color: var(--hover-bg);
+}
+
+.table td:empty {
+    background-color: #fbfcfc;
+}
+
+.table tr td:first-child,
+.table tr th:first-child {
+    border-left: none;
+}
+
+.table tr td:last-child,
+.table tr th:last-child {
+    border-right: none;
+}
+
+/* Timetable Header */
+.timetable-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.timetable-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 10px 0;
+    color: #2c3e50;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.timetable-header h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 8px 0;
+    color: #34495e;
+}
+
+.timetable-header h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 8px 0;
+    color: #2980b9;
+}
+
+.timetable-header h4 {
+    font-size: 16px;
+    font-weight: 400;
+    margin: 8px 0;
+    color: #7f8c8d;
 }
 
 /* Admin Panel Styles */
@@ -274,9 +342,21 @@ button.success:hover {
         flex-direction: column;
     }
     
-    .table th, .table td {
-        padding: 8px;
-        font-size: 12px;
+    .table {
+        font-size: 13px;
+    }
+    
+    .table th, 
+    .table td {
+        padding: 8px 4px;
+    }
+    
+    .timetable-header h1 {
+        font-size: 24px;
+    }
+    
+    .timetable-header h2 {
+        font-size: 18px;
     }
 }
 
@@ -356,258 +436,6 @@ button.success:hover {
 
 .time-input-group label {
     margin-top: 0;
-}
-
-/* Timetable Container - Full Screen */
-.table-container {
-    width: 95%; /* Adjusted to fit within the screen */
-    margin: 0 auto; /* Center the container */
-    background: #fff;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    overflow-x: auto; /* Allow horizontal scrolling if needed */
-}
-
-/* Timetable Table */
-.table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-    text-align: center;
-}
-
-.table th, .table td {
-    border: 1px solid #ddd;
-    padding: 10px;
-}
-
-.table th {
-    background-color: #f4f4f4;
-    font-weight: bold;
-}
-
-.table .day {
-    background-color: #d9edf7;
-    font-weight: bold;
-}
-
-.table .session {
-    background-color: #f9f2f4;
-    font-weight: bold;
-}
-
-.table td.has-course {
-    background-color: #dff0d8;
-    font-weight: bold;
-    color: #3c763d;
-}
-
-.table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.table tr:hover {
-    background-color: #f1f1f1;
-}
-
-/* Timetable Header */
-.timetable-header {
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.timetable-header h1 {
-    font-size: 24px;
-    font-weight: bold;
-    margin: 10px 0;
-    color: #333;
-}
-
-.timetable-header h2 {
-    font-size: 20px;
-    font-weight: bold;
-    margin: 5px 0;
-    color: #555;
-}
-
-.timetable-header h3 {
-    font-size: 18px;
-    font-weight: bold;
-    margin: 5px 0;
-    color: #777;
-}
-
-.timetable-header h4 {
-    font-size: 16px;
-    font-weight: normal;
-    margin: 5px 0;
-    color: #999;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    .table {
-        font-size: 12px; /* Adjust font size for smaller screens */
-    }
-
-    .table th, .table td {
-        padding: 10px; /* Reduce padding for smaller screens */
-    }
-}
-
-/* Admin Panel Styles */
-#adminPanel {
-    background-color: #f8f9fa; /* Light background for the entire panel */
-    padding: 20px;
-    min-height: 100vh; /* Full height */
-}
-
-#adminPanel h1 {
-    font-size: 28px;
-    font-weight: bold;
-    color: var(--primary-color);
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-/* Add New Entry Container */
-#timetableForm {
-    background: white;
-    padding: 40px;
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-    margin: 0 auto;
-    max-width: 800px;
-    text-align: left;
-}
-
-#timetableForm h3 {
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-/* Input Group Styles */
-.input-group {
-    margin-bottom: 20px;
-}
-
-.input-group label {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 8px;
-    display: block;
-}
-
-.input-group input, .input-group select {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 14px;
-    transition: border-color 0.3s ease;
-}
-
-.input-group input:focus, .input-group select:focus {
-    border-color: var(--primary-color);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
-}
-
-/* Checkbox Group */
-.checkbox-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 10px;
-}
-
-.checkbox-group label {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    font-weight: normal;
-    cursor: pointer;
-}
-
-.checkbox-group input[type="checkbox"] {
-    margin-right: 8px;
-    width: auto;
-}
-
-/* Time Input Group */
-.time-input-group {
-    display: flex;
-    gap: 20px;
-}
-
-.time-input-group > div {
-    flex: 1;
-}
-
-.time-input-group label {
-    font-size: 16px;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 8px;
-    display: block;
-}
-
-/* Button Styles */
-#timetableForm button {
-    display: block;
-    width: 100%;
-    padding: 15px;
-    font-size: 16px;
-    font-weight: bold;
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
-    margin-top: 20px;
-}
-
-#timetableForm button:hover {
-    background-color: #3367d6;
-    transform: translateY(-2px);
-}
-
-/* Entries Section */
-.entries-section {
-    margin-top: 40px;
-    background: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-}
-
-.entries-section h3 {
-    font-size: 20px;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 20px;
-    text-align: center;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-    #timetableForm {
-        padding: 20px;
-    }
-
-    .time-input-group {
-        flex-direction: column;
-    }
-
-    #timetableForm button {
-        font-size: 14px;
-    }
 }
 
 /* Configure Available Sessions Container */
