@@ -468,3 +468,33 @@ td:first-child {
 .table-container::-webkit-scrollbar-track {
     background: #f1f1f1;
 }
+
+/* Batch color classes */
+.batch-2021 {
+    background-color: #E6E6FA; /* Light lavender */
+}
+
+.batch-2022 {
+    background-color: #E8F5E9; /* Light green */
+}
+
+.batch-2023 {
+    background-color: #E3F2FD; /* Light blue */
+}
+
+.batch-2024 {
+    background-color: #FFFFFF; /* White */
+}
+
+/* Course cell styling */
+.course-cell {
+    font-weight: bold;
+    padding: 5px;
+    text-align: center;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Lab classes styling */
+.lab-course {
+    font-style: italic;
+}

@@ -16,49 +16,30 @@ function saveEntries() {
     localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
 }
 
-// Add a new entry
-function addEntry(day, session, course, timeSlot, startTime, endTime) {
-    // Check for conflicts
-    const conflictingEntry = timetableEntries.find(entry =>
-        entry.day === day &&
-        entry.session === session &&
-        ((startTime >= entry.startTime && startTime < entry.endTime) ||
-         (endTime > entry.startTime && endTime <= entry.endTime) ||
-         (startTime <= entry.startTime && endTime >= entry.endTime))
-    );
-
-    if (conflictingEntry) {
-        if (!confirm(`A course (${conflictingEntry.course}) already exists for ${day} at this time slot. Do you want to replace it?`)) {
-            return null; // Do not add the new entry
-        }
-        // Remove the conflicting entry
-        deleteEntry(conflictingEntry.id);
-    }
-
+// Add a new entry with extended course information
+function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
     // Create the new entry
     const entry = {
         id: Date.now(),
         day,
         session,
-        course,
+        courseCode,
+        courseName,
+        creditHours,
+        teacherName,
+        venue,
         timeSlot,
         startTime,
         endTime,
+        isLab: isLab || false,
         displayTimeSlot: `${startTime}-${endTime}`,
     };
 
-    console.log('Adding entry with times:', {
-        startTime: startTime,
-        endTime: endTime,
-        startTimeFormat: typeof startTime,
-        endTimeFormat: typeof endTime
-    });
+    console.log('Adding entry with course details:', entry);
 
     // Add the entry to the array and save it
     timetableEntries.push(entry);
     saveEntries();
-    console.log('Entry Added:', entry); // Debugging
-    console.log('All entries:', timetableEntries); // Debug all entries
     return entry;
 }
 
@@ -165,7 +146,7 @@ function displayEntriesInAdmin() {
         sessionCell.textContent = entry.session;
         
         const courseCell = document.createElement('td');
-        courseCell.textContent = entry.course;
+        courseCell.textContent = entry.courseName;
         
         const timeCell = document.createElement('td');
         timeCell.textContent = entry.displayTimeSlot;
@@ -276,7 +257,7 @@ function XdisplayTimetable() {
 
                     const cell = document.createElement('td');
                     cell.className = 'has-course';
-                    cell.textContent = entry.course;
+                    cell.textContent = entry.courseName;
                     cell.colSpan = spanCount;
                     cell.style.backgroundColor = '#e9ecef';
                     cell.style.textAlign = 'center';
@@ -337,7 +318,7 @@ function generatePDF() {
             timeSlots.forEach(timeSlot => {
                 const entry = timetableEntries.find(e => 
                     e.day === day && e.session == session && e.timeSlot === timeSlot);
-                rowData.push(entry ? entry.course : '');
+                rowData.push(entry ? entry.courseName : '');
             });
             data.push(rowData);
         });
@@ -407,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Admin Panel: Handle form submission with checkboxes
+    // Admin Panel: Handle form submission with extended course data
     const timetableForm = document.getElementById('timetableForm');
     if (timetableForm) {
         timetableForm.addEventListener('submit', function(e) {
@@ -421,67 +402,42 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             const session = document.getElementById('session').value;
-            const course = document.getElementById('courseName').value;
+            const courseCode = document.getElementById('courseCode').value;
+            const courseName = document.getElementById('courseName').value;
+            const creditHours = document.getElementById('creditHours').value;
+            const teacherName = document.getElementById('teacherName').value;
+            const venue = document.getElementById('venue').value;
             const startTime = document.getElementById('startTime').value;
             const endTime = document.getElementById('endTime').value;
-            
-            // Validate time inputs
-            if (!startTime || !endTime) {
-                alert('Please select start and end times');
-                return;
-            }
-            
-            if (startTime >= endTime) {
-                alert('End time must be after start time');
-                return;
-            }
-            
-            // Format time for compatibility with existing code
-            // Convert from 24-hour format (HH:MM) to standard format (hh:mm)
-            const formatTimeSlot = (timeStr) => {
-                const [hours, minutes] = timeStr.split(':');
-                let hour = parseInt(hours);
-                // Convert 24-hour format to 12-hour format
-                if (hour > 12) {
-                    hour = hour - 12;
-                }
-                if (hour === 0) hour = 12;
-                const minute = minutes;
-                return `${hour.toString().padStart(2, '0')}:${minute}`;
-            };
-            
-            const timeSlot = formatTimeSlot(startTime);
-            const formattedStartTime = formatTimeSlot(startTime);
-            const formattedEndTime = formatTimeSlot(endTime);
-            const displayTimeSlot = `${formattedStartTime}-${formattedEndTime}`;
+            const isLab = document.getElementById('isLab').checked;
             
             // Add entry for each selected day
             dayCheckboxes.forEach(checkbox => {
                 const day = checkbox.value;
-                
-                // Check for conflicts
-                const conflictingEntry = timetableEntries.find(entry => 
-                    entry.day === day && 
-                    entry.session == session && 
-                    entry.timeSlot === timeSlot
+                addEntry(
+                    day, 
+                    session, 
+                    courseCode, 
+                    courseName, 
+                    creditHours, 
+                    teacherName, 
+                    venue, 
+                    formatTimeFromInput(startTime), 
+                    startTime, 
+                    endTime, 
+                    isLab
                 );
-                
-                if (conflictingEntry) {
-                    if (!confirm(`A course (${conflictingEntry.course}) already exists for ${day} at this time slot. Do you want to replace it?`)) {
-                        return;
-                    }
-                    // Remove the conflicting entry
-                    deleteEntry(conflictingEntry.id);
-                }
-                
-                // Add the entry with the custom time slot display
-                const entry = addEntry(day, session, course, timeSlot, startTime, endTime);
-                entry.displayTimeSlot = displayTimeSlot;
             });
             
             // Update display and reset form
             displayEntriesInAdmin();
+            document.getElementById('courseCode').value = '';
             document.getElementById('courseName').value = '';
+            document.getElementById('creditHours').value = '';
+            document.getElementById('teacherName').value = '';
+            document.getElementById('venue').value = '';
+            document.getElementById('isLab').checked = false;
+            
             alert('Entry added successfully!');
         });
     }
