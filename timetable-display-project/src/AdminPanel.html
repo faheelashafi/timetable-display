@@ -128,9 +128,110 @@
             </div>
         </div>
 
+        <!-- Data Management Section -->
+        <div class="data-management-section">
+            <h2>Data Management</h2>
+            <p class="section-description">Add, edit, and manage course data used for suggestions throughout the system.</p>
+            
+            <div class="data-lists-container">
+                <!-- Teacher Names List Card -->
+                <div class="data-list-card">
+                    <h4>Teacher Names</h4>
+                    <div id="teacherNamesListView" class="list-items">
+                        <!-- Teacher names will be dynamically populated here -->
+                    </div>
+                    <div class="add-list-item">
+                        <input type="text" id="newTeacherName" placeholder="Add new teacher...">
+                        <button class="small success" id="addTeacherBtn">Add</button>
+                    </div>
+                </div>
+                
+                <!-- Venues List Card -->
+                <div class="data-list-card">
+                    <h4>Venues</h4>
+                    <div id="venuesListView" class="list-items">
+                        <!-- Venues will be dynamically populated here -->
+                    </div>
+                    <div class="add-list-item">
+                        <input type="text" id="newVenue" placeholder="Add new venue...">
+                        <button class="small success" id="addVenueBtn">Add</button>
+                    </div>
+                </div>
+                
+                <!-- Course Names List Card -->
+                <div class="data-list-card">
+                    <h4>Course Names</h4>
+                    <div id="courseNamesListView" class="list-items">
+                        <!-- Course names will be dynamically populated here -->
+                    </div>
+                    <div class="add-list-item">
+                        <input type="text" id="newCourseName" placeholder="Add new course name...">
+                        <button class="small success" id="addCourseNameBtn">Add</button>
+                    </div>
+                </div>
+                
+                <!-- Course Codes List Card -->
+                <div class="data-list-card">
+                    <h4>Course Codes</h4>
+                    <div id="courseCodesListView" class="list-items">
+                        <!-- Course codes will be dynamically populated here -->
+                    </div>
+                    <div class="add-list-item">
+                        <input type="text" id="newCourseCode" placeholder="Add new course code...">
+                        <button class="small success" id="addCourseCodeBtn">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="button-container">
             <button id="generatePdf" class="pdf-btn">Generate PDF</button>
+            <button id="viewStoredData" class="data-btn">View Stored Data</button>
             <button id="clearAllEntries" class="danger">Delete All Entries</button>
+        </div>
+
+        <!-- Add this modal for data viewing -->
+        <div id="dataModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Stored Data</h3>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="suggestions">Suggestions</button>
+                    <button class="tab-btn" data-tab="courses">Course Data</button>
+                </div>
+                <div id="suggestions" class="tab-content active">
+                    <h4>Teacher Names</h4>
+                    <div id="teacherNamesList" class="data-list"></div>
+                    
+                    <h4>Venues</h4>
+                    <div id="venuesList" class="data-list"></div>
+                    
+                    <h4>Course Names</h4>
+                    <div id="courseNamesList" class="data-list"></div>
+                    
+                    <h4>Course Codes</h4>
+                    <div id="courseCodesList" class="data-list"></div>
+                </div>
+                <div id="courses" class="tab-content">
+                    <h4>Course Database</h4>
+                    <div id="courseDatabase" class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Credit Hours</th>
+                                    <th>Teacher</th>
+                                    <th>Venue</th>
+                                </tr>
+                            </thead>
+                            <tbody id="courseData">
+                                <!-- Course data will be dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

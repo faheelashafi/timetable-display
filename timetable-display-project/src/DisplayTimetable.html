@@ -89,7 +89,7 @@
                 // For each session, create a row
                 sessions.forEach((session, sessionIndex) => {
                     const row = document.createElement('tr');
-                    // Add batch-specific background color
+                    // Add batch-specific background color - MAKE SURE THIS IS APPLIED
                     row.className = `batch-${session}`;
                     
                     // Add day cell (only for first session in the day)
@@ -132,13 +132,14 @@
                             // Create the cell for this entry
                             const cell = document.createElement('td');
                             cell.className = 'course-cell';
-                            if (entry.isLab) {
+
+                            // Highlight labs differently
+                            if (entry.isLab || entry.courseCode && entry.courseCode.toLowerCase().includes('lab')) {
                                 cell.className += ' lab-course';
+                                cell.textContent = entry.courseCode + ' Lab';
+                            } else {
+                                cell.textContent = entry.courseCode;
                             }
-                            
-                            // Display course code and lab indicator if applicable
-                            const displayText = entry.courseCode + (entry.isLab ? ' Lab' : '');
-                            cell.textContent = displayText;
                             cell.colSpan = spanCount;
                             
                             // Add tooltip with extended information

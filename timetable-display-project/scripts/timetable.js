@@ -16,8 +16,136 @@ function saveEntries() {
     localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
 }
 
+// Data management system for suggestions and autocomplete
+const dataManager = {
+    // Storage keys
+    keys: {
+        teacherNames: 'timetable_teacherNames',
+        venues: 'timetable_venues',
+        courseNames: 'timetable_courseNames',
+        courseCodes: 'timetable_courseCodes'
+    },
+    
+    // Get stored data or initialize empty array
+    getData: function(key) {
+        return JSON.parse(localStorage.getItem(key)) || [];
+    },
+    
+    // Save data to localStorage
+    saveData: function(key, data) {
+        localStorage.setItem(key, JSON.stringify(data));
+        localStorage.setItem(key + '_lastUpdated', new Date().toISOString());
+    },
+    
+    // Add new item to a specific data collection
+    addItem: function(key, item) {
+        if (!item) return;
+        
+        const data = this.getData(key);
+        if (!data.includes(item)) {
+            data.push(item);
+            data.sort();
+            this.saveData(key, data);
+        }
+    },
+    
+    // Add multiple items at once
+    addItems: function(key, items) {
+        if (!items || !items.length) return;
+        
+        const data = this.getData(key);
+        let changed = false;
+        
+        items.forEach(item => {
+            if (item && !data.includes(item)) {
+                data.push(item);
+                changed = true;
+            }
+        });
+        
+        if (changed) {
+            data.sort();
+            this.saveData(key, data);
+        }
+    },
+    
+    // Get suggestions based on input
+    getSuggestions: function(key, input) {
+        if (!input) return [];
+        
+        const data = this.getData(key);
+        const lowerInput = input.toLowerCase();
+        
+        return data.filter(item => 
+            item.toLowerCase().includes(lowerInput)
+        );
+    },
+    
+    // Store entry data when a new entry is added
+    storeEntryData: function(entry) {
+        if (entry.teacherName) this.addItem(this.keys.teacherNames, entry.teacherName);
+        if (entry.venue) this.addItem(this.keys.venues, entry.venue);
+        if (entry.courseName) this.addItem(this.keys.courseNames, entry.courseName);
+        if (entry.courseCode) this.addItem(this.keys.courseCodes, entry.courseCode);
+    },
+    
+    // Import data from existing entries
+    importFromEntries: function() {
+        const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+        
+        const teacherNames = entries.map(e => e.teacherName).filter(Boolean);
+        const venues = entries.map(e => e.venue).filter(Boolean);
+        const courseNames = entries.map(e => e.courseName).filter(Boolean);
+        const courseCodes = entries.map(e => e.courseCode).filter(Boolean);
+        
+        this.addItems(this.keys.teacherNames, teacherNames);
+        this.addItems(this.keys.venues, venues);
+        this.addItems(this.keys.courseNames, courseNames);
+        this.addItems(this.keys.courseCodes, courseCodes);
+        
+        console.log('Imported data from existing entries');
+    },
+
+    // Get data as a structured object with metadata
+    getDataWithMetadata: function(key) {
+        const data = this.getData(key);
+        return {
+            key: key,
+            items: data,
+            count: data.length,
+            lastUpdated: localStorage.getItem(key + '_lastUpdated') || 'Never'
+        };
+    },
+    
+    // Remove an item from a specific data collection
+    removeItem: function(key, item) {
+        if (!item) return false;
+        
+        const data = this.getData(key);
+        const index = data.indexOf(item);
+        
+        if (index !== -1) {
+            data.splice(index, 1);
+            this.saveData(key, data);
+            return true;
+        }
+        
+        return false;
+    },
+    
+    // Get all stored data
+    getAllData: function() {
+        return {
+            teacherNames: this.getDataWithMetadata(this.keys.teacherNames),
+            venues: this.getDataWithMetadata(this.keys.venues),
+            courseNames: this.getDataWithMetadata(this.keys.courseNames),
+            courseCodes: this.getDataWithMetadata(this.keys.courseCodes)
+        };
+    }
+};
+
 // Add a new entry with extended course information
-function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
+const originalAddEntry = function(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
     // Create the new entry
     const entry = {
         id: Date.now(),
@@ -41,7 +169,13 @@ function addEntry(day, session, courseCode, courseName, creditHours, teacherName
     timetableEntries.push(entry);
     saveEntries();
     return entry;
-}
+};
+
+addEntry = function(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
+    const entry = originalAddEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab);
+    dataManager.storeEntryData(entry);
+    return entry;
+};
 
 // Delete a specific entry by ID
 function deleteEntry(id) {
@@ -342,6 +476,217 @@ function generatePDF() {
     doc.save('timetable.pdf');
 }
 
+// Function to display stored data in modal
+function displayStoredData() {
+    const modal = document.getElementById('dataModal');
+    const closeBtn = document.querySelector('#dataModal .close');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // Get all data
+    const teacherNames = dataManager.getData(dataManager.keys.teacherNames);
+    const venues = dataManager.getData(dataManager.keys.venues);
+    const courseNames = dataManager.getData(dataManager.keys.courseNames);
+    const courseCodes = dataManager.getData(dataManager.keys.courseCodes);
+    
+    // Populate teacher names
+    const teacherNamesContainer = document.getElementById('teacherNamesList');
+    teacherNamesContainer.innerHTML = '';
+    teacherNames.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'data-item';
+        div.textContent = name;
+        teacherNamesContainer.appendChild(div);
+    });
+    
+    // Populate venues
+    const venuesContainer = document.getElementById('venuesList');
+    venuesContainer.innerHTML = '';
+    venues.forEach(venue => {
+        const div = document.createElement('div');
+        div.className = 'data-item';
+        div.textContent = venue;
+        venuesContainer.appendChild(div);
+    });
+    
+    // Populate course names
+    const courseNamesContainer = document.getElementById('courseNamesList');
+    courseNamesContainer.innerHTML = '';
+    courseNames.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'data-item';
+        div.textContent = name;
+        courseNamesContainer.appendChild(div);
+    });
+    
+    // Populate course codes
+    const courseCodesContainer = document.getElementById('courseCodesList');
+    courseCodesContainer.innerHTML = '';
+    courseCodes.forEach(code => {
+        const div = document.createElement('div');
+        div.className = 'data-item';
+        div.textContent = code;
+        courseCodesContainer.appendChild(div);
+    });
+    
+    // Populate course database
+    const courseData = document.getElementById('courseData');
+    courseData.innerHTML = '';
+    
+    // Create a unique list of courses by course code
+    const uniqueCourses = {};
+    timetableEntries.forEach(entry => {
+        if (entry.courseCode && !uniqueCourses[entry.courseCode]) {
+            uniqueCourses[entry.courseCode] = entry;
+        }
+    });
+    
+    Object.values(uniqueCourses).forEach(course => {
+        const row = document.createElement('tr');
+        
+        const codeCell = document.createElement('td');
+        codeCell.textContent = course.courseCode || '';
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = course.courseName || '';
+        
+        const hoursCell = document.createElement('td');
+        hoursCell.textContent = course.creditHours || '';
+        
+        const teacherCell = document.createElement('td');
+        teacherCell.textContent = course.teacherName || '';
+        
+        const venueCell = document.createElement('td');
+        venueCell.textContent = course.venue || '';
+        
+        row.appendChild(codeCell);
+        row.appendChild(nameCell);
+        row.appendChild(hoursCell);
+        row.appendChild(teacherCell);
+        row.appendChild(venueCell);
+        
+        courseData.appendChild(row);
+    });
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Close modal when clicking the X
+    closeBtn.onclick = function() {
+        modal.style.display = 'none';
+    }
+    
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    // Handle tabs
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all buttons and contents
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked button and corresponding content
+            btn.classList.add('active');
+            const tabId = btn.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+}
+
+// Populate the data lists in the admin panel
+function populateDataLists() {
+    populateListView('teacherNamesListView', dataManager.keys.teacherNames);
+    populateListView('venuesListView', dataManager.keys.venues);
+    populateListView('courseNamesListView', dataManager.keys.courseNames);
+    populateListView('courseCodesListView', dataManager.keys.courseCodes);
+}
+
+// Populate a specific list view with data
+function populateListView(elementId, dataKey) {
+    const listContainer = document.getElementById(elementId);
+    if (!listContainer) return;
+    
+    const items = dataManager.getData(dataKey);
+    listContainer.innerHTML = '';
+    
+    if (items.length === 0) {
+        const emptyMessage = document.createElement('div');
+        emptyMessage.className = 'empty-list-message';
+        emptyMessage.textContent = 'No items yet. Add some using the form below.';
+        listContainer.appendChild(emptyMessage);
+        return;
+    }
+    
+    items.forEach(item => {
+        const listItem = document.createElement('div');
+        listItem.className = 'list-item';
+        
+        const itemText = document.createElement('span');
+        itemText.className = 'list-item-text';
+        itemText.textContent = item;
+        
+        const actions = document.createElement('div');
+        actions.className = 'list-item-actions';
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'danger small';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => {
+            deleteListItem(dataKey, item);
+            populateListView(elementId, dataKey);
+        });
+        
+        actions.appendChild(deleteBtn);
+        listItem.appendChild(itemText);
+        listItem.appendChild(actions);
+        listContainer.appendChild(listItem);
+    });
+}
+
+// Delete an item from a data list
+function deleteListItem(dataKey, item) {
+    if (confirm(`Are you sure you want to delete "${item}"?`)) {
+        const data = dataManager.getData(dataKey);
+        const updatedData = data.filter(dataItem => dataItem !== item);
+        dataManager.saveData(dataKey, updatedData);
+    }
+}
+
+// Add handlers for adding new items to data lists
+function setupDataListHandlers() {
+    setupAddItemHandler('addTeacherBtn', 'newTeacherName', dataManager.keys.teacherNames, 'teacherNamesListView');
+    setupAddItemHandler('addVenueBtn', 'newVenue', dataManager.keys.venues, 'venuesListView');
+    setupAddItemHandler('addCourseNameBtn', 'newCourseName', dataManager.keys.courseNames, 'courseNamesListView');
+    setupAddItemHandler('addCourseCodeBtn', 'newCourseCode', dataManager.keys.courseCodes, 'courseCodesListView');
+}
+
+// Set up handler for adding a new item to a list
+function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
+    const addBtn = document.getElementById(buttonId);
+    if (!addBtn) return;
+    
+    addBtn.addEventListener('click', () => {
+        const input = document.getElementById(inputId);
+        const value = input.value.trim();
+        
+        if (value) {
+            // Add to data store
+            dataManager.addItem(dataKey, value);
+            
+            // Update the list view
+            populateListView(listElementId, dataKey);
+            
+            // Clear the input
+            input.value = '';
+        }
+    });
+}
+
 // Fix the event listener in the DOMContentLoaded function to handle the new form structure
 document.addEventListener('DOMContentLoaded', function() {
     // Check login status
@@ -457,9 +802,42 @@ document.addEventListener('DOMContentLoaded', function() {
     // Display entries in admin panel
     displayEntriesInAdmin();
     
-    // COMMENT OUT THIS LINE to avoid conflicts with inline script
-    // displayTimetable();
-    // console.log('Timetable Entries Loaded:', timetableEntries);
+    // Import data from existing entries
+    dataManager.importFromEntries();
+    
+    // Setup autocomplete for form fields
+    const teacherNameInput = document.getElementById('teacherName');
+    const venueInput = document.getElementById('venue');
+    const courseNameInput = document.getElementById('courseName');
+    const courseCodeInput = document.getElementById('courseCode');
+    
+    if (teacherNameInput) {
+        setupAutocomplete(teacherNameInput, 'teacherNamesList', dataManager.keys.teacherNames);
+    }
+    
+    if (venueInput) {
+        setupAutocomplete(venueInput, 'venuesList', dataManager.keys.venues);
+    }
+    
+    if (courseNameInput) {
+        setupAutocomplete(courseNameInput, 'courseNamesList', dataManager.keys.courseNames);
+    }
+    
+    if (courseCodeInput) {
+        setupAutocomplete(courseCodeInput, 'courseCodesList', dataManager.keys.courseCodes);
+    }
+    
+    // Data access button
+    const viewStoredDataBtn = document.getElementById('viewStoredData');
+    if (viewStoredDataBtn) {
+        viewStoredDataBtn.addEventListener('click', displayStoredData);
+    }
+    
+    // Populate data lists in admin panel
+    populateDataLists();
+    
+    // Set up data list handlers
+    setupDataListHandlers();
 });
 
 // Helper function to format time from input
@@ -472,8 +850,52 @@ function formatTimeFromInput(timeStr) {
     return `${hour.toString().padStart(2, '0')}:${minute}`;
 }
 
-// Also comment out this window.load event handler
-// window.addEventListener('load', function () {
-//     console.log('Display Timetable Function Called'); // Debugging
-//     displayTimetable();
-// });
+// Create autocomplete functionality
+function setupAutocomplete(inputField, datalistId, dataKey) {
+    // Create or get datalist element
+    let datalist = document.getElementById(datalistId);
+    if (!datalist) {
+        datalist = document.createElement('datalist');
+        datalist.id = datalistId;
+        document.body.appendChild(datalist);
+    }
+    
+    // Connect input to datalist
+    inputField.setAttribute('list', datalistId);
+    
+    // Update suggestions as user types
+    inputField.addEventListener('input', function() {
+        const value = this.value;
+        const suggestions = dataManager.getSuggestions(dataKey, value);
+        
+        // Clear existing options
+        datalist.innerHTML = '';
+        
+        // Add new suggestions
+        suggestions.forEach(suggestion => {
+            const option = document.createElement('option');
+            option.value = suggestion;
+            datalist.appendChild(option);
+        });
+    });
+}
+
+// Add a function to manually add suggestions
+function addSuggestion(type, value) {
+    const key = dataManager.keys[type];
+    if (key && value) {
+        dataManager.addItem(key, value);
+        return true;
+    }
+    return false;
+}
+
+// Add a debug function to view all stored suggestions
+function viewStoredSuggestions() {
+    return {
+        teacherNames: dataManager.getData(dataManager.keys.teacherNames),
+        venues: dataManager.getData(dataManager.keys.venues),
+        courseNames: dataManager.getData(dataManager.keys.courseNames),
+        courseCodes: dataManager.getData(dataManager.keys.courseCodes)
+    };
+}
