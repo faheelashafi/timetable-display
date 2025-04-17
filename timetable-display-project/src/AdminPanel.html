@@ -23,24 +23,6 @@
     <div class="container">
         <h1>Timetable Management Panel</h1>
         
-        <div id="sessionConfig" class="table-container">
-            <h3>Configure Available Sessions</h3>
-            <div class="input-group">
-                <label for="startYear">Start Year:</label>
-                <select id="startYear">
-                    <option value="2021">2021</option>
-                    <option value="2022">2022</option>
-                    <option value="2023">2023</option>
-                    <option value="2024">2024</option>
-                </select>
-            </div>
-            <div class="input-group">
-                <label for="numberOfSessions">Number of Sessions:</label>
-                <input type="number" id="numberOfSessions" min="1" max="10" value="4">
-            </div>
-            <button id="updateSessionsBtn">Update Available Sessions</button>
-        </div>
-        
         <div id="adminPanel">
             <h1>Admin Timetable Management</h1>
 
@@ -50,10 +32,7 @@
                 <div class="input-group">
                     <label for="session">Select Session:</label>
                     <select id="session" name="session" required>
-                        <option value="2021">2021 (7th Semester)</option>
-                        <option value="2022">2022 (5th Semester)</option>
-                        <option value="2023">2023 (3rd Semester)</option>
-                        <option value="2024">2024 (1st Semester)</option>
+                        <!-- Session options will be generated automatically in JavaScript -->
                     </select>
                 </div>
                 <div class="input-group">

@@ -194,49 +194,74 @@ function deleteAllEntries() {
 
 // Update session dropdown based on configuration
 function updateSessionOptions() {
-    const startYear = parseInt(document.getElementById('startYear').value);
-    const numberOfSessions = parseInt(document.getElementById('numberOfSessions').value);
-    
+    autoUpdateSessionOptions();
+}
+
+// Determine available sessions based on current year and academic semester
+function autoUpdateSessionOptions() {
     const sessionDropdown = document.getElementById('session');
-    sessionDropdown.innerHTML = ''; // Clear existing options
+    if (!sessionDropdown) return;
     
-    // Add options based on start year and number of sessions
-    for (let i = 0; i < numberOfSessions; i++) {
-        const year = startYear + i;
+    // Clear existing options
+    sessionDropdown.innerHTML = '';
+    
+    // Get current date
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-11 (Jan-Dec)
+    
+    // Determine if we're in Spring (Jan-June) or Fall (July-Dec) semester
+    const isSpring = currentMonth >= 0 && currentMonth <= 5; // January (0) to June (5)
+    const isFall = currentMonth >= 6 && currentMonth <= 11; // July (6) to December (11)
+    
+    // Calculate the years to include - 4 active batches
+    let startYear, endYear;
+    
+    if (isFall) {
+        // Fall semester (July-Dec): Show 1st, 3rd, 5th, 7th semesters
+        startYear = currentYear - 3;
+        endYear = currentYear;
+    } else {
+        // Spring semester (Jan-June): Show 2nd, 4th, 6th, 8th semesters
+        startYear = currentYear - 4;
+        endYear = currentYear - 1;
+    }
+    
+    // Add options for the 4 active batches (ordered newest to oldest)
+    for (let year = endYear; year >= startYear; year--) {
         const option = document.createElement('option');
         option.value = year;
-        option.textContent = year;
+        
+        // Calculate which semester this batch is in
+        const yearsElapsed = endYear - year;
+        let semester;
+        
+        if (isFall) {
+            // Fall semester: Odd-numbered semesters
+            switch (yearsElapsed) {
+                case 0: semester = "1st"; break;
+                case 1: semester = "3rd"; break;
+                case 2: semester = "5th"; break;
+                case 3: semester = "7th"; break;
+                default: semester = "Unknown";
+            }
+        } else {
+            // Spring semester: Even-numbered semesters
+            switch (yearsElapsed) {
+                case 0: semester = "2nd"; break;
+                case 1: semester = "4th"; break;
+                case 2: semester = "6th"; break;
+                case 3: semester = "8th"; break;
+                default: semester = "Unknown";
+            }
+        }
+        
+        const semesterType = isFall ? "Fall" : "Spring";
+        option.textContent = `${year} (${semester} Semester - ${semesterType})`;
         sessionDropdown.appendChild(option);
     }
     
-    // Save session configuration
-    localStorage.setItem('sessionConfig', JSON.stringify({
-        startYear: startYear,
-        numberOfSessions: numberOfSessions
-    }));
-}
-
-// Update the updateYearOptions function to show 8 years back to last year
-
-function updateYearOptions() {
-    const currentYear = new Date().getFullYear();
-    const startYearSelect = document.getElementById('startYear');
-    
-    if (!startYearSelect) return;
-    
-    // Clear existing options
-    startYearSelect.innerHTML = '';
-    
-    // Add options for current year - 8 to last year (currentYear - 1)
-    for (let year = currentYear - 8; year <= currentYear - 1; year++) {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = year;
-        startYearSelect.appendChild(option);
-    }
-    
-    // Update the session dropdown as well
-    updateSessionOptions();
+    console.log(`Auto-configured ${isFall ? "Fall" : "Spring"} semester sessions from ${startYear} to ${endYear}`);
 }
 
 // Display entries in the admin panel
@@ -373,18 +398,25 @@ function XdisplayTimetable() {
             sessionCell.style.backgroundColor = '#f1f1f1';
             row.appendChild(sessionCell);
 
-            // Add time slot cells
-            let cellIndex = 0;
-            while (cellIndex < timeSlots.length) {
-                const timeSlot = timeSlots[cellIndex];
-                const entry = sessionEntries.find(e => {
-                    const startMinutes = parseInt(e.startTime.split(':')[0]) * 60 + parseInt(e.startTime.split(':')[1]);
-                    const endMinutes = parseInt(e.endTime.split(':')[0]) * 60 + parseInt(e.endTime.split(':')[1]);
-                    const slotMinutes = parseInt(timeSlot.split(':')[0]) * 60 + parseInt(timeSlot.split(':')[1]);
-                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+            // Fill in time slots
+            for (let i = 0; i < timeSlots.length; i++) {
+                const timeSlot = timeSlots[i];
+                const slotEntries = sessionEntries.filter(entry => {
+                    // Convert start/end times to compare with time slot
+                    const slotStart = timeSlot.split('-')[0];
+                    
+                    // Convert times to minutes for accurate comparison
+                    const entryStartMinutes = convertToMinutes(entry.startTime);
+                    const entryEndMinutes = convertToMinutes(entry.endTime);
+                    const slotStartMinutes = convertToMinutes(slotStart);
+                    
+                    return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
                 });
-
-                if (entry) {
+                
+                if (slotEntries.length > 0) {
+                    const entry = slotEntries[0];
+                    
+                    // Calculate how many slots this entry spans
                     const startMinutes = parseInt(entry.startTime.split(':')[0]) * 60 + parseInt(entry.startTime.split(':')[1]);
                     const endMinutes = parseInt(entry.endTime.split(':')[0]) * 60 + parseInt(entry.endTime.split(':')[1]);
                     const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
@@ -398,12 +430,12 @@ function XdisplayTimetable() {
                     row.appendChild(cell);
 
                     // Skip ahead by the number of slots this entry spans
-                    cellIndex += spanCount;
+                    i += spanCount;
                 } else {
                     // Empty cell
                     const cell = document.createElement('td');
                     row.appendChild(cell);
-                    cellIndex++;
+                    i++;
                 }
             }
 
@@ -412,68 +444,456 @@ function XdisplayTimetable() {
     });
 }
 
-// Generate PDF of the timetable
+// Add this helper function if it doesn't exist already
+function convertToMinutes(timeString) {
+    if (!timeString) return 0;
+    
+    const parts = timeString.split(':');
+    let hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1] || 0);
+    
+    return hours * 60 + minutes;
+}
+
+// Generate PDF function
 function generatePDF() {
-    // Use jsPDF library
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(16);
-    doc.text('Timetable - Fall Semester 2024', 105, 15, null, null, 'center');
-    
-    // Prepare data for table
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
-    const timeSlots = [
-        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
-        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
-    ];
-    
-    // Header for the table
-    const headers = ['Day', 'Session', ...timeSlots.map(slot => {
-        const parts = slot.split(':');
-        const hour = parseInt(parts[0]);
-        const min = parseInt(parts[1]);
-        let endHour = hour;
-        let endMin = min + 30;
-        if (endMin >= 60) {
-            endHour++;
-            endMin = 0;
+    try {
+        console.log("Starting PDF generation...");
+        
+        // Check if jsPDF is loaded
+        if (typeof window.jspdf === 'undefined') {
+            if (typeof window.jspdf === 'undefined') {
+                window.jspdf = window.jspdf || {};
+                if (typeof jsPDF !== 'undefined') {
+                    window.jspdf.jsPDF = jsPDF;
+                }
+            }
         }
-        return `${slot}-${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
-    })];
-    
-    // Create data array for the table
-    const data = [];
-    days.forEach(day => {
-        sessions.forEach(session => {
-            const rowData = [day, session];
-            timeSlots.forEach(timeSlot => {
-                const entry = timetableEntries.find(e => 
-                    e.day === day && e.session == session && e.timeSlot === timeSlot);
-                rowData.push(entry ? entry.courseName : '');
+        
+        // Get jsPDF constructor
+        const { jsPDF } = window.jspdf;
+        if (!jsPDF) {
+            alert("PDF generation failed: jsPDF library not loaded properly");
+            return;
+        }
+        
+        // Create a new PDF document (landscape orientation for timetable)
+        const doc = new jsPDF('l', 'mm', 'a4');
+        
+        // Add header
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Time Table Fall Semester 2024', doc.internal.pageSize.width / 2, 15, { align: 'center' });
+        
+        doc.setFontSize(14);
+        doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
+            doc.internal.pageSize.width / 2, 22, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
+        
+        // DO NOT add the BSIT semester line
+        
+        // Group entries by session
+        const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const timeSlots = [
+
+            '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', '03:00-03:30', '03:30-04:00',
+            '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', '06:00-06:30', '06:30-07:00'
+        ];
+        
+        // Set up timetable headers
+        const headers = ['Day', 'Session', ...timeSlots.map(slot => slot)];
+        
+        // Set up timetable data
+        let tableData = [];
+        
+        // Process each day and session
+        days.forEach(day => {
+            const dayEntries = timetableEntries.filter(entry => entry.day === day);
+            if (dayEntries.length === 0) return;
+            
+            const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+            
+            daySessions.forEach((session, index) => {
+                const row = [];
+                
+                // Add day (only for first session)
+                row.push(index === 0 ? day : '');
+                
+                // Add session
+                row.push(session);
+                
+                // Add cells for each time slot
+                const sessionEntries = dayEntries.filter(entry => entry.session === session);
+                
+                // Fill each time slot
+                for (let i = 0; i < timeSlots.length; i++) {
+                    // Get the start time from the time slot
+                    const slotStart = timeSlots[i].split('-')[0];
+                    
+                    // Find entry that overlaps with this time slot
+                    const entry = sessionEntries.find(entry => {
+                        const entryStartMinutes = convertToMinutes(entry.startTime);
+                        const entryEndMinutes = convertToMinutes(entry.endTime);
+                        const slotStartMinutes = convertToMinutes(slotStart);
+                        
+                        return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
+                    });
+                    
+                    if (entry) {
+                        // Calculate how many slots this entry spans
+                        const startSlotIndex = i;
+                        const startMinutes = convertToMinutes(entry.startTime);
+                        const endMinutes = convertToMinutes(entry.endTime);
+                        const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
+                        
+                        // Add the course code to this cell
+                        const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
+                        row.push(cellContent);
+                        
+                        // Add empty cells for the span
+                        for (let j = 1; j < spanCount; j++) {
+                            row.push('');
+                        }
+                        
+                        // Skip ahead
+                        i += (spanCount - 1);
+                    } else {
+                        // Empty cell
+                        row.push('');
+                    }
+                }
+                
+                tableData.push(row);
             });
-            data.push(rowData);
         });
-    });
-    
-    // Add table to PDF
-    doc.autoTable({
-        head: [headers],
-        body: data,
-        startY: 25,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 1 },
-        headStyles: { fillColor: [66, 133, 244] },
-        columnStyles: {
-            0: { fontStyle: 'bold' },
-            1: { fontStyle: 'bold' }
+        
+        // Set up autotable configuration
+        const startY = 35;
+        
+        // Generate the timetable
+        doc.autoTable({
+            head: [headers],
+            body: tableData,
+            startY: startY,
+            styles: {
+                fontSize: 8,
+                cellPadding: 2
+            },
+            columnStyles: {
+                0: { cellWidth: 20 }, // Day column
+                1: { cellWidth: 15 }  // Session column
+            },
+            didParseCell: function(data) {
+                // Set colors based on session
+                if (data.section === 'body') {
+                    const session = data.row.cells[1].text;
+                    
+                    if (data.column.index < 2) {
+                        // Day and session columns
+                        if (data.column.index === 0) {
+                            data.cell.styles.fillColor = [73, 124, 15]; // Green for day
+                            data.cell.styles.textColor = [255, 255, 255]; // White text
+                            data.cell.styles.fontStyle = 'bold';
+                        } else {
+                            data.cell.styles.fillColor = [240, 240, 240]; // Light gray for session
+                        }
+                    } else if (data.row.cells[1].text) {
+                        // Set batch colors based on session year
+                        if (data.row.cells[data.column.index].text) {
+                            // Has course content
+                            const isLab = data.row.cells[data.column.index].text.includes('Lab');
+                            
+                            if (isLab) {
+                                data.cell.styles.fillColor = [255, 243, 205]; // Light yellow for labs
+                            } else {
+                                switch(session) {
+                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break; // Light lavender
+                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break; // Light green
+                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break; // Light blue
+                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break; // Light cream
+                                }
+                            }
+                        } else {
+                            // Empty cell - very light color based on batch
+                            switch(session) {
+                                case '2021': data.cell.styles.fillColor = [250, 249, 255]; break; // Very light lavender
+                                case '2022': data.cell.styles.fillColor = [248, 253, 248]; break; // Very light green
+                                case '2023': data.cell.styles.fillColor = [247, 251, 255]; break; // Very light blue
+                                case '2024': data.cell.styles.fillColor = [255, 254, 250]; break; // Very light cream
+                            }
+                        }
+                    }
+                } else if (data.section === 'head') {
+                    data.cell.styles.fillColor = [73, 124, 15]; // Green header
+                    data.cell.styles.textColor = [255, 255, 255]; // White text
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        });
+        
+        // Add course information tables for each session
+        sessions.forEach((session, index) => {
+            // Add a page break for all but the first session
+            if (index > 0) {
+                doc.addPage();
+            } else if (doc.lastAutoTable) {
+                // Start below the timetable on the first page
+                doc.lastAutoTable.finalY += 15;
+            }
+            
+            // Add session header
+            const sessionYear = parseInt(session);
+            const currentYear = new Date().getFullYear();
+            let semesterNum;
+            
+            // Determine semester number based on session year
+            if (session === '2021') semesterNum = "7th";
+            else if (session === '2022') semesterNum = "5th";
+            else if (session === '2023') semesterNum = "3rd";
+            else if (session === '2024') semesterNum = "1st";
+            else semesterNum = "";
+            
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(12);
+            const sessionTitle = `Session ${session} (${semesterNum} Semester)`;
+            doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
+            
+            // Filter courses for this session
+            const sessionEntries = timetableEntries.filter(entry => entry.session === session);
+            const uniqueCourses = {};
+            
+            sessionEntries.forEach(entry => {
+                if (!uniqueCourses[entry.courseCode]) {
+                    uniqueCourses[entry.courseCode] = entry;
+                }
+            });
+            
+            const courseData = Object.values(uniqueCourses).map(course => [
+                course.courseCode,
+                course.courseName,
+                course.creditHours,
+                course.teacherName || '',
+                course.venue
+            ]);
+            
+            // Generate course table
+            if (courseData.length > 0) {
+                doc.autoTable({
+                    head: [['Course Code', 'Course Name', 'Credit Hrs', 'Teacher Name', 'Venue']],
+                    body: courseData,
+                    startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 125,
+                    styles: {
+                        fontSize: 9,
+                        cellPadding: 3
+                    },
+                    headStyles: {
+                        fillColor: [73, 124, 15], // Green header
+                        textColor: [255, 255, 255], // White text
+                        fontStyle: 'bold'
+                    },
+                    alternateRowStyles: {
+                        fillColor: [248, 248, 248] // Light gray for alternate rows
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+            }
+        });
+        
+        // Add footer with date and page number
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            
+            // Footer with date
+            const today = new Date().toLocaleDateString();
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(`Generated on: ${today}`, 14, doc.internal.pageSize.height - 10);
+            
+            // Page number
+            doc.text(
+                `Page ${i} of ${totalPages}`,
+                doc.internal.pageSize.width - 25,
+                doc.internal.pageSize.height - 10
+            );
         }
-    });
+        
+        // Save the PDF
+        doc.save('timetable.pdf');
+        console.log("PDF generated successfully!");
+    } catch (error) {
+        console.error("Error generating PDF:", error);
+        alert("Error generating PDF: " + error.message);
+    }
+}
+
+// Add this at the end of your timetable.js file
+document.addEventListener('DOMContentLoaded', function() {
+    // Check login status
+    checkLogin();
     
-    // Save the PDF
-    doc.save('timetable.pdf');
+    // Update session options automatically based on current year
+    autoUpdateSessionOptions();
+    
+    // Handle logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            sessionStorage.removeItem('loggedIn');
+            sessionStorage.removeItem('currentUser');
+            window.location.href = 'AdminLogin.html';
+        });
+    }
+    
+    // Handle form submission for adding new entries
+    const timetableForm = document.getElementById('timetableForm');
+    if (timetableForm) {
+        timetableForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Form validation
+            const courseCode = document.getElementById('courseCode').value.trim();
+            const courseName = document.getElementById('courseName').value.trim();
+            const creditHours = document.getElementById('creditHours').value.trim();
+            const venue = document.getElementById('venue').value.trim();
+            const teacherName = document.getElementById('teacherName').value.trim(); // Optional
+            const session = document.getElementById('session').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const isLab = document.getElementById('isLab').checked;
+            
+            // Get selected days
+            const selectedDays = [];
+            document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
+                selectedDays.push(checkbox.value);
+            });
+            
+            // Validate required fields
+            let error = false;
+            
+            if (!courseCode) {
+                document.getElementById('courseCode').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('courseCode').classList.remove('input-error');
+            }
+            
+            if (!courseName) {
+                document.getElementById('courseName').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('courseName').classList.remove('input-error');
+            }
+            
+            if (!creditHours) {
+                document.getElementById('creditHours').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('creditHours').classList.remove('input-error');
+            }
+            
+            if (!venue) {
+                document.getElementById('venue').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('venue').classList.remove('input-error');
+            }
+            
+            if (!startTime) {
+                document.getElementById('startTime').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('startTime').classList.remove('input-error');
+            }
+            
+            if (!endTime) {
+                document.getElementById('endTime').classList.add('input-error');
+                error = true;
+            } else {
+                document.getElementById('endTime').classList.remove('input-error');
+            }
+            
+            if (selectedDays.length === 0) {
+                alert('Please select at least one day');
+                error = true;
+            }
+            
+            // Additional validation: end time must be after start time
+            if (startTime && endTime && startTime >= endTime) {
+                alert('End time must be after start time');
+                document.getElementById('endTime').classList.add('input-error');
+                error = true;
+            }
+            
+            if (error) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            // Add entry for each selected day
+            let entryCount = 0;
+            selectedDays.forEach(day => {
+                addEntry(
+                    day,
+                    session,
+                    courseCode,
+                    courseName,
+                    creditHours,
+                    teacherName, // This is optional, can be empty
+                    venue,
+                    formatTimeFromInput(startTime),
+                    startTime,
+                    endTime,
+                    isLab
+                );
+                entryCount++;
+            });
+            
+            // Update display and reset form
+            displayEntriesInAdmin();
+            timetableForm.reset();
+            
+            // Show success message
+            alert(`Successfully added ${entryCount} entries to the timetable.`);
+        });
+    }
+    
+    // Generate PDF button
+    const generatePdfBtn = document.getElementById('generatePdf');
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', generatePDF);
+    }
+    
+    // View Stored Data button
+    const viewStoredDataBtn = document.getElementById('viewStoredData');
+    if (viewStoredDataBtn) {
+        viewStoredDataBtn.addEventListener('click', displayStoredData);
+    }
+    
+    // Delete All Entries button
+    const clearAllEntriesBtn = document.getElementById('clearAllEntries');
+    if (clearAllEntriesBtn) {
+        clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
+    }
+    
+    // Initialize data lists and autocomplete
+    dataManager.importFromEntries();
+    populateDataLists();
+    setupDataListHandlers();
+    
+    // Display existing entries in admin panel
+    displayEntriesInAdmin();
+});
+
+// Helper function to format time for timetable
+function formatTimeFromInput(timeString) {
+    if (!timeString) return '';
+    
+    const [hours, minutes] = timeString.split(':');
+    return `${hours}:${minutes}`;
 }
 
 // Function to display stored data in modal
@@ -574,14 +994,14 @@ function displayStoredData() {
     // Close modal when clicking the X
     closeBtn.onclick = function() {
         modal.style.display = 'none';
-    }
+    };
     
     // Close modal when clicking outside
     window.onclick = function(event) {
         if (event.target == modal) {
             modal.style.display = 'none';
         }
-    }
+    };
     
     // Handle tabs
     tabBtns.forEach(btn => {
@@ -657,7 +1077,7 @@ function deleteListItem(dataKey, item) {
     }
 }
 
-// Add handlers for adding new items to data lists
+// Set up handlers for adding new items to data lists
 function setupDataListHandlers() {
     setupAddItemHandler('addTeacherBtn', 'newTeacherName', dataManager.keys.teacherNames, 'teacherNamesListView');
     setupAddItemHandler('addVenueBtn', 'newVenue', dataManager.keys.venues, 'venuesListView');
@@ -687,236 +1107,27 @@ function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
     });
 }
 
-// Fix the event listener in the DOMContentLoaded function to handle the new form structure
-document.addEventListener('DOMContentLoaded', function() {
-    // Check login status
-    checkLogin();
+// Setup autocomplete for input fields
+function setupAutocomplete(inputElement, listId, dataKey) {
+    if (!inputElement) return;
     
-    // Update year options automatically
-    updateYearOptions();
-    
-    // Handle logout
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', function() {
-            sessionStorage.removeItem('loggedIn');
-            sessionStorage.removeItem('currentUser');
-            window.location.href = 'AdminLogin.html';
-        });
-    }
-    
-    // Load session configuration
-    const sessionConfig = JSON.parse(localStorage.getItem('sessionConfig')) || {
-        startYear: new Date().getFullYear() - 3, 
-        numberOfSessions: 4
-    };
-    
-    const startYearSelect = document.getElementById('startYear');
-    const numberOfSessionsInput = document.getElementById('numberOfSessions');
-    
-    if (startYearSelect && numberOfSessionsInput) {
-        // Make sure the value exists in the dropdown
-        const yearExists = Array.from(startYearSelect.options).some(
-            option => option.value === sessionConfig.startYear.toString()
-        );
-        
-        if (yearExists) {
-            startYearSelect.value = sessionConfig.startYear;
-        }
-        
-        numberOfSessionsInput.value = sessionConfig.numberOfSessions;
-        
-        // Handle session configuration updates
-        const updateSessionsBtn = document.getElementById('updateSessionsBtn');
-        if (updateSessionsBtn) {
-            updateSessionsBtn.addEventListener('click', updateSessionOptions);
-        }
-    }
-    
-    // Admin Panel: Handle form submission with validation
-    timetableForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Validate required fields
-        const session = document.getElementById('session').value;
-        const courseCode = document.getElementById('courseCode').value.trim();
-        const courseName = document.getElementById('courseName').value.trim();
-        const creditHours = document.getElementById('creditHours').value.trim();
-        const venue = document.getElementById('venue').value.trim();
-        const startTime = document.getElementById('startTime').value;
-        const endTime = document.getElementById('endTime').value;
-        const isLab = document.getElementById('isLab').checked;
-        
-        // Teacher name is optional
-        const teacherName = document.getElementById('teacherName').value.trim();
-        
-        // Check required fields
-        let errors = [];
-        
-        if (!courseCode) errors.push("Course Code is required");
-        if (!courseName) errors.push("Course Name is required");
-        if (!creditHours) errors.push("Credit Hours are required");
-        if (!venue) errors.push("Venue is required");
-        if (!startTime) errors.push("Start Time is required");
-        if (!endTime) errors.push("End Time is required");
-        
-        // Validate time format and logic
-        if (startTime && endTime) {
-            const start = new Date(`2000-01-01T${startTime}`);
-            const end = new Date(`2000-01-01T${endTime}`);
-            
-            if (end <= start) {
-                errors.push("End Time must be after Start Time");
-            }
-        }
-        
-        // Get selected days (checkboxes)
-        const dayCheckboxes = document.querySelectorAll('input[name="day"]:checked');
-        if (dayCheckboxes.length === 0) {
-            errors.push("Please select at least one day");
-        }
-        
-        // Display errors if any
-        if (errors.length > 0) {
-            alert("Please fix the following errors:\n\n" + errors.join("\n"));
-            return;
-        }
-        
-        // Add entry for each selected day
-        dayCheckboxes.forEach(checkbox => {
-            const day = checkbox.value;
-            addEntry(
-                day, 
-                session, 
-                courseCode, 
-                courseName, 
-                creditHours, 
-                teacherName, 
-                venue, 
-                formatTimeFromInput(startTime), 
-                startTime, 
-                endTime, 
-                isLab
-            );
-        });
-        
-        // Update display and reset form
-        displayEntriesInAdmin();
-        timetableForm.reset();
-        
-        // Provide feedback
-        alert('Entry added successfully!');
-    });
-    
-    // Clear all entries button
-    const clearAllBtn = document.getElementById('clearAllEntries');
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', deleteAllEntries);
-    }
-    
-    // Generate PDF button
-    const generatePdfBtn = document.getElementById('generatePdf');
-    if (generatePdfBtn) {
-        generatePdfBtn.addEventListener('click', generatePDF);
-    }
-    
-    // Display entries in admin panel
-    displayEntriesInAdmin();
-    
-    // Import data from existing entries
-    dataManager.importFromEntries();
-    
-    // Setup autocomplete for form fields
-    const teacherNameInput = document.getElementById('teacherName');
-    const venueInput = document.getElementById('venue');
-    const courseNameInput = document.getElementById('courseName');
-    const courseCodeInput = document.getElementById('courseCode');
-    
-    if (teacherNameInput) {
-        setupAutocomplete(teacherNameInput, 'teacherNamesList', dataManager.keys.teacherNames);
-    }
-    
-    if (venueInput) {
-        setupAutocomplete(venueInput, 'venuesList', dataManager.keys.venues);
-    }
-    
-    if (courseNameInput) {
-        setupAutocomplete(courseNameInput, 'courseNamesList', dataManager.keys.courseNames);
-    }
-    
-    if (courseCodeInput) {
-        setupAutocomplete(courseCodeInput, 'courseCodesList', dataManager.keys.courseCodes);
-    }
-    
-    // Data access button
-    const viewStoredDataBtn = document.getElementById('viewStoredData');
-    if (viewStoredDataBtn) {
-        viewStoredDataBtn.addEventListener('click', displayStoredData);
-    }
-    
-    // Populate data lists in admin panel
-    populateDataLists();
-    
-    // Set up data list handlers
-    setupDataListHandlers();
-});
-
-// Helper function to format time from input
-function formatTimeFromInput(timeStr) {
-    const [hours, minutes] = timeStr.split(':');
-    let hour = parseInt(hours);
-    if (hour > 12) hour -= 12;
-    if (hour === 0) hour = 12;
-    const minute = minutes;
-    return `${hour.toString().padStart(2, '0')}:${minute}`;
-}
-
-// Create autocomplete functionality
-function setupAutocomplete(inputField, datalistId, dataKey) {
-    // Create or get datalist element
-    let datalist = document.getElementById(datalistId);
+    // Create datalist if not exists
+    let datalist = document.getElementById(listId);
     if (!datalist) {
         datalist = document.createElement('datalist');
-        datalist.id = datalistId;
+        datalist.id = listId;
         document.body.appendChild(datalist);
     }
     
-    // Connect input to datalist
-    inputField.setAttribute('list', datalistId);
+    // Link input to datalist
+    inputElement.setAttribute('list', listId);
     
-    // Update suggestions as user types
-    inputField.addEventListener('input', function() {
-        const value = this.value;
-        const suggestions = dataManager.getSuggestions(dataKey, value);
-        
-        // Clear existing options
-        datalist.innerHTML = '';
-        
-        // Add new suggestions
-        suggestions.forEach(suggestion => {
-            const option = document.createElement('option');
-            option.value = suggestion;
-            datalist.appendChild(option);
-        });
+    // Populate datalist
+    const items = dataManager.getData(dataKey);
+    datalist.innerHTML = '';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        datalist.appendChild(option);
     });
-}
-
-// Add a function to manually add suggestions
-function addSuggestion(type, value) {
-    const key = dataManager.keys[type];
-    if (key && value) {
-        dataManager.addItem(key, value);
-        return true;
-    }
-    return false;
-}
-
-// Add a debug function to view all stored suggestions
-function viewStoredSuggestions() {
-    return {
-        teacherNames: dataManager.getData(dataManager.keys.teacherNames),
-        venues: dataManager.getData(dataManager.keys.venues),
-        courseNames: dataManager.getData(dataManager.keys.courseNames),
-        courseCodes: dataManager.getData(dataManager.keys.courseCodes)
-    };
 }
