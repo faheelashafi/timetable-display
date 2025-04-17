@@ -733,59 +733,80 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Admin Panel: Handle form submission with extended course data
-    const timetableForm = document.getElementById('timetableForm');
-    if (timetableForm) {
-        timetableForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+    // Admin Panel: Handle form submission with validation
+    timetableForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validate required fields
+        const session = document.getElementById('session').value;
+        const courseCode = document.getElementById('courseCode').value.trim();
+        const courseName = document.getElementById('courseName').value.trim();
+        const creditHours = document.getElementById('creditHours').value.trim();
+        const venue = document.getElementById('venue').value.trim();
+        const startTime = document.getElementById('startTime').value;
+        const endTime = document.getElementById('endTime').value;
+        const isLab = document.getElementById('isLab').checked;
+        
+        // Teacher name is optional
+        const teacherName = document.getElementById('teacherName').value.trim();
+        
+        // Check required fields
+        let errors = [];
+        
+        if (!courseCode) errors.push("Course Code is required");
+        if (!courseName) errors.push("Course Name is required");
+        if (!creditHours) errors.push("Credit Hours are required");
+        if (!venue) errors.push("Venue is required");
+        if (!startTime) errors.push("Start Time is required");
+        if (!endTime) errors.push("End Time is required");
+        
+        // Validate time format and logic
+        if (startTime && endTime) {
+            const start = new Date(`2000-01-01T${startTime}`);
+            const end = new Date(`2000-01-01T${endTime}`);
             
-            // Get selected days (checkboxes)
-            const dayCheckboxes = document.querySelectorAll('input[name="day"]:checked');
-            if (dayCheckboxes.length === 0) {
-                alert('Please select at least one day');
-                return;
+            if (end <= start) {
+                errors.push("End Time must be after Start Time");
             }
-            
-            const session = document.getElementById('session').value;
-            const courseCode = document.getElementById('courseCode').value;
-            const courseName = document.getElementById('courseName').value;
-            const creditHours = document.getElementById('creditHours').value;
-            const teacherName = document.getElementById('teacherName').value;
-            const venue = document.getElementById('venue').value;
-            const startTime = document.getElementById('startTime').value;
-            const endTime = document.getElementById('endTime').value;
-            const isLab = document.getElementById('isLab').checked;
-            
-            // Add entry for each selected day
-            dayCheckboxes.forEach(checkbox => {
-                const day = checkbox.value;
-                addEntry(
-                    day, 
-                    session, 
-                    courseCode, 
-                    courseName, 
-                    creditHours, 
-                    teacherName, 
-                    venue, 
-                    formatTimeFromInput(startTime), 
-                    startTime, 
-                    endTime, 
-                    isLab
-                );
-            });
-            
-            // Update display and reset form
-            displayEntriesInAdmin();
-            document.getElementById('courseCode').value = '';
-            document.getElementById('courseName').value = '';
-            document.getElementById('creditHours').value = '';
-            document.getElementById('teacherName').value = '';
-            document.getElementById('venue').value = '';
-            document.getElementById('isLab').checked = false;
-            
-            alert('Entry added successfully!');
+        }
+        
+        // Get selected days (checkboxes)
+        const dayCheckboxes = document.querySelectorAll('input[name="day"]:checked');
+        if (dayCheckboxes.length === 0) {
+            errors.push("Please select at least one day");
+        }
+        
+        // Display errors if any
+        if (errors.length > 0) {
+            alert("Please fix the following errors:\n\n" + errors.join("\n"));
+            return;
+        }
+        
+        // Add entry for each selected day
+        dayCheckboxes.forEach(checkbox => {
+            const day = checkbox.value;
+            addEntry(
+                day, 
+                session, 
+                courseCode, 
+                courseName, 
+                creditHours, 
+                teacherName, 
+                venue, 
+                formatTimeFromInput(startTime), 
+                startTime, 
+                endTime, 
+                isLab
+            );
         });
-    }
+        
+        // Update display and reset form
+        displayEntriesInAdmin();
+        timetableForm.reset();
+        
+        // Provide feedback
+        alert('Entry added successfully!');
+    });
     
     // Clear all entries button
     const clearAllBtn = document.getElementById('clearAllEntries');

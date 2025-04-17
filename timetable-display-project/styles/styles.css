@@ -178,12 +178,12 @@ button.small {
 
 /* Table Styles */
 .table-container {
-    margin: 15px auto;
+    margin: 10px auto;
     width: 98%;
     background: #fff;
     padding: 10px;
     border-radius: 6px;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     overflow-x: auto;
 }
 
@@ -192,27 +192,29 @@ button.small {
     border-collapse: collapse;
     margin: 5px 0;
     font-size: 13px;
+    border: 1px solid #ddd;
 }
 
-.table th {
-    background-color: #4d7c0f; /* Dark green header */
+.table th, 
+.table td {
+    border: 1px solid #ddd;
+}
+
+.table th, 
+.table .day-cell {
+    background-color: #4d9a4d !important; /* Lighter green for header */
     color: white;
-    padding: 6px 3px;
     font-weight: 600;
     text-align: center;
-    border: 1px solid var(--header-bg);
-    position: relative;
 }
 
 .table td {
     padding: 6px 3px;
-    border: 1px solid var(--border-color);
     transition: all 0.2s ease;
 }
 
 .table .day-cell, 
 td:first-child {
-    background-color: #4d7c0f; /* Match header color */
     font-weight: 600;
     color: white;
     text-align: center;
@@ -220,10 +222,11 @@ td:first-child {
 }
 
 .table .session-cell {
-    color: #34495e;
+    background-color: #f9f9f9 !important;
+    color: #333;
+    font-weight: 600;
     text-align: center;
-    padding: 5px 2px;
-    background-color: transparent !important;
+    border: 1px solid #ddd;
 }
 
 .table td.course-cell,
@@ -237,19 +240,35 @@ td:first-child {
 }
 
 .batch-2021 td.course-cell {
-    background-color: rgba(203, 163, 255, 0.3) !important; /* Lavender with transparency */
+    background-color: rgba(226, 214, 255, 0.3) !important; /* Very light lavender with transparency */
 }
 
 .batch-2022 td.course-cell {
-    background-color: rgba(105, 219, 124, 0.3) !important; /* Green with transparency */
+    background-color: rgba(200, 237, 204, 0.4) !important; /* Very light green with transparency */
 }
 
 .batch-2023 td.course-cell {
-    background-color: rgba(125, 206, 255, 0.3) !important; /* Blue with transparency */
+    background-color: rgba(203, 232, 255, 0.4) !important; /* Very light blue with transparency */
 }
 
 .batch-2024 td.course-cell {
-    background-color: rgba(255, 213, 145, 0.3) !important; /* Orange with transparency */
+    background-color: rgba(255, 250, 230, 0.4) !important; /* Very light yellow with transparency */
+}
+
+.batch-2021 {
+    background-color: #f2efff !important; /* Very light lavender */
+}
+
+.batch-2022 {
+    background-color: #e8f7e8 !important; /* Very light pastel green */
+}
+
+.batch-2023 {
+    background-color: #e7f4ff !important; /* Very light sky blue */
+}
+
+.batch-2024 {
+    background-color: #fffbeb !important; /* Very light cream/yellow */
 }
 
 .table tr:nth-child(even) {
@@ -261,7 +280,8 @@ td:first-child {
 }
 
 .table td:empty {
-    background-color: #fbfcfc;
+    background-color: white;
+    border: 1px solid #eee;
 }
 
 .table tr td:first-child,
@@ -277,28 +297,26 @@ td:first-child {
 /* Timetable Header */
 .timetable-header {
     text-align: center;
-    margin-bottom: 10px;
-    padding: 1px;
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    border-radius: 2px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 5px;
+    padding: 5px;
+    background: #f5f7fa;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .timetable-header h1 {
     font-size: 18px;
-    font-weight: 200;
-    margin: 0px 0;
-    color: #2c3e50;
-    text-shadow: none;
+    font-weight: bold;
+    margin: 5px 0;
+    color: #333;
 }
 
 .timetable-header h3 {
     font-size: 14px;
-    font-weight: 100;
-    margin: 0px 0;
-    color: #2980b9;
+    font-weight: normal;
+    margin: 5px 0;
+    color: #666;
 }
-
 
 /* Admin Panel Styles */
 .admin-controls {
@@ -643,34 +661,9 @@ td:first-child {
     background: #f1f1f1;
 }
 
-/* Batch color classes */
-.batch-2021 {
-    background-color: #F8E5FF !important; /* Light lavender - more visible */
-}
-
-.batch-2022 {
-    background-color: #DCFFD6 !important; /* Light green - more visible */
-}
-
-.batch-2023 {
-    background-color: #D6F0FF !important; /* Light blue - more visible */
-}
-
-.batch-2024 {
-    background-color: #FFF2D6 !important; /* Light orange for first year */
-}
-
-/* Course cell styling */
-.course-cell {
-    font-weight: bold;
-    padding: 5px;
-    text-align: center;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
 /* Lab classes styling */
 .lab-course {
-    background-color: rgba(255, 236, 179, 0.7) !important; /* Light yellow */
+    background-color: rgba(255, 248, 225, 0.7) !important; /* Very light yellow */
     font-style: italic;
 }
 
@@ -791,4 +784,25 @@ td:first-child {
 
 .data-table th {
     background-color: #f2f2f2;
+}
+
+/* Required field indicator */
+.required-field::after {
+    content: "*";
+    color: var(--danger-color);
+    margin-left: 3px;
+}
+
+/* Optional field indicator */
+.optional-field::after {
+    content: " (optional)";
+    color: #999;
+    font-size: 0.9em;
+    font-weight: normal;
+}
+
+/* Form validation error */
+.input-error {
+    border-color: var(--danger-color) !important;
+    background-color: rgba(231, 76, 60, 0.05) !important;
 }
