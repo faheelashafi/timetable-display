@@ -220,6 +220,24 @@
             // The functionality has been moved to timetable.js
             // No duplicate event handlers needed here
         });
+
+        // In your form submit handler, ensure time values are properly formatted
+        const formattedStartTime = startTime.includes(':') ? startTime : startTime + ':00';
+        const formattedEndTime = endTime.includes(':') ? endTime : endTime + ':00';
+
+        addEntry(
+            day,
+            session,
+            courseCode,
+            courseName,
+            creditHours,
+            teacherName,
+            venue,
+            formatTimeFromInput(formattedStartTime),
+            formattedStartTime,
+            formattedEndTime,
+            isLab
+        );
     </script>
     
     <!-- Changed from timetable.java to timetable.js since we need JavaScript, not Java for browser -->

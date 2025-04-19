@@ -1,3 +1,57 @@
+// Add this debugging function at the top of your file
+function debugTimeFormatting(entry) {
+    console.log(`Entry time format check: startTime=${entry.startTime} (${typeof entry.startTime}), endTime=${entry.endTime} (${typeof entry.endTime})`);
+    return entry;
+}
+
+// Updated time utilities for more reliable comparison
+function normalizeTimeFormat(timeString) {
+    if (!timeString) return '00:00';
+    
+    // If only hours are provided, add minutes
+    if (!timeString.includes(':')) {
+        return timeString + ':00';
+    }
+    
+    return timeString;
+}
+
+// Updated convertToMinutes function
+function convertToMinutes(timeString) {
+    if (!timeString) return 0;
+    
+    const normalizedTime = normalizeTimeFormat(timeString);
+    const parts = normalizedTime.split(':');
+    let hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1] || 0);
+    
+    // Make sure we're using 24-hour format for consistency
+    // If hours are between 1-7 and the time is PM (afternoon classes)
+    if (hours >= 1 && hours <= 7) {
+        hours += 12; // Convert to 24-hour format (1pm = 13:00)
+    }
+    
+    return hours * 60 + minutes;
+}
+
+// Fix time slot comparison in generatePDF
+function isEntryInTimeSlot(entry, slotStart) {
+    // Normalize times for consistency
+    const entryStartTime = normalizeTimeFormat(entry.startTime);
+    const entryEndTime = normalizeTimeFormat(entry.endTime);
+    
+    // Convert to minutes for easier comparison
+    const entryStartMinutes = convertToMinutes(entryStartTime);
+    const entryEndMinutes = convertToMinutes(entryEndTime);
+    const slotStartMinutes = convertToMinutes(slotStart);
+    
+    // Debug output
+    console.log(`Comparing ${entry.courseCode}: ${entryStartTime}(${entryStartMinutes}) - ${entryEndTime}(${entryEndMinutes}) with slot ${slotStart}(${slotStartMinutes})`);
+    
+    // Entry starts at or before this slot and ends after this slot starts
+    return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
+}
+
 // Check if user is logged in (for AdminPanel.html)
 function checkLogin() {
     if (window.location.href.includes('AdminPanel.html')) {
@@ -331,131 +385,7 @@ function displayEntriesInAdmin() {
     });
 }
 
-// Fix the displayTimetable function to handle time slots correctly
-
-// Display timetable on the DisplayTimetable.html page
-function XdisplayTimetable() {
-    console.log('displayTimetable function called');
-    const timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-    console.log('Loaded timetable entries:', timetableEntries);
-
-    const tableBody = document.getElementById('timetableBody');
-    if (!tableBody) {
-        console.error('Error: Table body element not found!');
-        return;
-    }
-
-    // Clear existing content
-    tableBody.innerHTML = '';
-
-    // Handle empty entries
-    if (timetableEntries.length === 0) {
-        const emptyRow = document.createElement('tr');
-        const emptyCell = document.createElement('td');
-        emptyCell.colSpan = 14;
-        emptyCell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
-        emptyCell.style.textAlign = 'center';
-        emptyCell.style.padding = '20px';
-        emptyRow.appendChild(emptyCell);
-        tableBody.appendChild(emptyRow);
-        return;
-    }
-
-    // Group entries by day
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const timeSlots = [
-        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
-        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
-    ];
-
-    days.forEach(day => {
-        const dayEntries = timetableEntries.filter(entry => entry.day === day);
-
-        if (dayEntries.length === 0) return;
-
-        // Group entries by session
-        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-
-        sessions.forEach(session => {
-            const sessionEntries = dayEntries.filter(entry => entry.session === session);
-
-            const row = document.createElement('tr');
-
-            // Add day cell for the first session of the day
-            if (sessions.indexOf(session) === 0) {
-                const dayCell = document.createElement('td');
-                dayCell.rowSpan = sessions.length;
-                dayCell.textContent = day;
-                dayCell.style.fontWeight = 'bold';
-                dayCell.style.backgroundColor = '#f8f9fa';
-                row.appendChild(dayCell);
-            }
-
-            // Add session cell
-            const sessionCell = document.createElement('td');
-            sessionCell.textContent = session;
-            sessionCell.style.fontWeight = 'bold';
-            sessionCell.style.backgroundColor = '#f1f1f1';
-            row.appendChild(sessionCell);
-
-            // Fill in time slots
-            for (let i = 0; i < timeSlots.length; i++) {
-                const timeSlot = timeSlots[i];
-                const slotEntries = sessionEntries.filter(entry => {
-                    // Convert start/end times to compare with time slot
-                    const slotStart = timeSlot.split('-')[0];
-                    
-                    // Convert times to minutes for accurate comparison
-                    const entryStartMinutes = convertToMinutes(entry.startTime);
-                    const entryEndMinutes = convertToMinutes(entry.endTime);
-                    const slotStartMinutes = convertToMinutes(slotStart);
-                    
-                    return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
-                });
-                
-                if (slotEntries.length > 0) {
-                    const entry = slotEntries[0];
-                    
-                    // Calculate how many slots this entry spans
-                    const startMinutes = parseInt(entry.startTime.split(':')[0]) * 60 + parseInt(entry.startTime.split(':')[1]);
-                    const endMinutes = parseInt(entry.endTime.split(':')[0]) * 60 + parseInt(entry.endTime.split(':')[1]);
-                    const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-
-                    const cell = document.createElement('td');
-                    cell.className = 'has-course';
-                    cell.textContent = entry.courseName;
-                    cell.colSpan = spanCount;
-                    cell.style.backgroundColor = '#e9ecef';
-                    cell.style.textAlign = 'center';
-                    row.appendChild(cell);
-
-                    // Skip ahead by the number of slots this entry spans
-                    i += spanCount;
-                } else {
-                    // Empty cell
-                    const cell = document.createElement('td');
-                    row.appendChild(cell);
-                    i++;
-                }
-            }
-
-            tableBody.appendChild(row);
-        });
-    });
-}
-
-// Add this helper function if it doesn't exist already
-function convertToMinutes(timeString) {
-    if (!timeString) return 0;
-    
-    const parts = timeString.split(':');
-    let hours = parseInt(parts[0]);
-    const minutes = parseInt(parts[1] || 0);
-    
-    return hours * 60 + minutes;
-}
-
-// Generate PDF function
+// Fixed generatePDF function - replace the existing function with this one
 function generatePDF() {
     try {
         console.log("Starting PDF generation...");
@@ -492,16 +422,16 @@ function generatePDF() {
         doc.setFontSize(12);
         doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
         
-        // DO NOT add the BSIT semester line
-        
         // Group entries by session
         const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         const timeSlots = [
-
             '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', '03:00-03:30', '03:30-04:00',
             '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', '06:00-06:30', '06:30-07:00'
         ];
+        
+        // Debug all entries
+        console.log("All timetable entries:", timetableEntries);
         
         // Set up timetable headers
         const headers = ['Day', 'Session', ...timeSlots.map(slot => slot)];
@@ -514,6 +444,8 @@ function generatePDF() {
             const dayEntries = timetableEntries.filter(entry => entry.day === day);
             if (dayEntries.length === 0) return;
             
+            console.log(`Entries for ${day}:`, dayEntries);
+            
             const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
             
             daySessions.forEach((session, index) => {
@@ -525,50 +457,61 @@ function generatePDF() {
                 // Add session
                 row.push(session);
                 
-                // Add cells for each time slot
-                const sessionEntries = dayEntries.filter(entry => entry.session === session);
+                // Get entries for this session/day
+                const sessionEntries = dayEntries.filter(entry => entry.session.toString() === session.toString());
+                console.log(`Entries for ${day}, session ${session}:`, sessionEntries);
+                
+                // Track slots that are already filled
+                let skipSlots = 0;
                 
                 // Fill each time slot
                 for (let i = 0; i < timeSlots.length; i++) {
+                    // Skip slots that are already filled by previous entries
+                    if (skipSlots > 0) {
+                        skipSlots--;
+                        continue;
+                    }
+                    
                     // Get the start time from the time slot
-                    const slotStart = timeSlots[i].split('-')[0];
+                    const slotParts = timeSlots[i].split('-');
+                    const slotStart = slotParts[0];
                     
                     // Find entry that overlaps with this time slot
-                    const entry = sessionEntries.find(entry => {
-                        const entryStartMinutes = convertToMinutes(entry.startTime);
-                        const entryEndMinutes = convertToMinutes(entry.endTime);
-                        const slotStartMinutes = convertToMinutes(slotStart);
-                        
-                        return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
-                    });
-                    
-                    if (entry) {
-                        // Calculate how many slots this entry spans
-                        const startSlotIndex = i;
-                        const startMinutes = convertToMinutes(entry.startTime);
-                        const endMinutes = convertToMinutes(entry.endTime);
-                        const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-                        
-                        // Add the course code to this cell
-                        const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                        row.push(cellContent);
-                        
-                        // Add empty cells for the span
-                        for (let j = 1; j < spanCount; j++) {
-                            row.push('');
+                    let foundEntry = null;
+                    for (const entry of sessionEntries) {
+
+                        // Use the improved time comparison function
+                        if (isEntryInTimeSlot(entry, slotStart)) {
+                            foundEntry = entry;
+                            console.log(`MATCH FOUND: ${entry.courseCode} at slot ${slotStart}`);
+                            
+                            // Calculate span count - how many 30-min slots this entry covers
+                            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                            const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
+                            
+                            // Add the course code to this cell
+                            const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
+                            row.push(cellContent);
+                            
+                            // Skip appropriate number of slots
+                            skipSlots = spanCount - 1;
+                            break;
                         }
-                        
-                        // Skip ahead
-                        i += (spanCount - 1);
-                    } else {
-                        // Empty cell
+                    }
+                    
+                    // If no matching entry found, add empty cell
+                    if (!foundEntry) {
                         row.push('');
                     }
                 }
                 
+                // Add row to table data
                 tableData.push(row);
             });
         });
+        
+        console.log("Generated table data:", tableData);
         
         // Set up autotable configuration
         const startY = 35;
@@ -649,12 +592,27 @@ function generatePDF() {
             const currentYear = new Date().getFullYear();
             let semesterNum;
             
-            // Determine semester number based on session year
-            if (session === '2021') semesterNum = "7th";
-            else if (session === '2022') semesterNum = "5th";
-            else if (session === '2023') semesterNum = "3rd";
-            else if (session === '2024') semesterNum = "1st";
-            else semesterNum = "";
+            // Determine semester number based on current month and session year
+            const currentMonth = new Date().getMonth();
+            const isFall = currentMonth >= 6 && currentMonth <= 11;
+            
+            if (isFall) {
+                // Fall semester (July-Dec): Show 1st, 3rd, 5th, 7th semesters
+                const yearDiff = currentYear - sessionYear;
+                if (yearDiff === 0) semesterNum = "1st";
+                else if (yearDiff === 1) semesterNum = "3rd";
+                else if (yearDiff === 2) semesterNum = "5th";
+                else if (yearDiff === 3) semesterNum = "7th";
+                else semesterNum = "";
+            } else {
+                // Spring semester (Jan-June): Show 2nd, 4th, 6th, 8th semesters
+                const yearDiff = (currentYear-1) - sessionYear;
+                if (yearDiff === 0) semesterNum = "2nd";
+                else if (yearDiff === 1) semesterNum = "4th";
+                else if (yearDiff === 2) semesterNum = "6th";
+                else if (yearDiff === 3) semesterNum = "8th";
+                else semesterNum = "";
+            }
             
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(12);
@@ -662,7 +620,7 @@ function generatePDF() {
             doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
             
             // Filter courses for this session
-            const sessionEntries = timetableEntries.filter(entry => entry.session === session);
+            const sessionEntries = timetableEntries.filter(entry => entry.session.toString() === session.toString());
             const uniqueCourses = {};
             
             sessionEntries.forEach(entry => {
