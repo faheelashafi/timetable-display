@@ -688,6 +688,54 @@ function generatePDF() {
     }
 }
 
+// Replace the existing login response handling in your login form event listener
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const rememberMe = document.getElementById('rememberMe').checked;
+    
+    if (!username || !password) {
+        alert('Please enter both username and password.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.message || 'Login failed');
+        }
+        
+        // Store auth token, user info AND ROLE
+        sessionStorage.setItem('authToken', data.token);
+        sessionStorage.setItem('loggedIn', 'true');
+        sessionStorage.setItem('currentUser', username);
+        sessionStorage.setItem('userRole', data.role); // Store the user's role
+        
+        if (rememberMe) {
+            localStorage.setItem('rememberedUser', username);
+        }
+        
+        // Only redirect to admin panel if user is an admin
+        if (data.role === 'admin') {
+            window.location.href = 'AdminPanel.html';
+        } else {
+            alert('Login successful but you do not have administrator privileges. Redirecting to timetable view.');
+            window.location.href = 'DisplayTimetable.html';
+        }
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
 // Add this at the end of your timetable.js file
 document.addEventListener('DOMContentLoaded', function() {
     // Check login status
