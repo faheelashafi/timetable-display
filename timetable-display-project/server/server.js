@@ -65,7 +65,7 @@ transporter.verify(function(error, success) {
 // Create JWT secret
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 
-// Modify the register endpoint to create regular users, not admins
+// Modify the register endpoint to create users with admin privileges
 app.post('/api/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -84,23 +84,23 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
-    // Create verification token (optional at this point)
+    // Create verification token
     const token = jwt.sign({ username, email }, JWT_SECRET, { expiresIn: '1d' });
     
-    // Add user with regular user role (not admin)
+    // Add user with admin role
     users.push({
       username,
       email,
       password, 
       verified: true, // Auto-verify for development
       verificationToken: token,
-      role: 'user' // Regular user role, not admin
+      role: 'admin' // Grant admin privileges to all users
     });
     
-    console.log(`New user registered: ${username} (${email})`);
+    console.log(`New user registered: ${username} (${email}) with admin privileges`);
     
     res.status(201).json({ 
-      message: 'Registration successful! However, you need admin privileges to access the admin panel.'
+      message: 'Registration successful! You now have admin privileges.'
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -186,7 +186,7 @@ app.post('/api/resend-verification', async (req, res) => {
   }
 });
 
-// Update login endpoint to include role in the token
+// Update login endpoint to grant admin access to all verified users
 app.post('/api/login', (req, res) => {
   try {
     const { username, password } = req.body;
@@ -202,19 +202,17 @@ app.post('/api/login', (req, res) => {
       return res.status(403).json({ error: 'Please verify your email before logging in' });
     }
     
-    // Check if user has admin role
-    const isAdmin = user.role === 'admin' || user.username === 'admin6';
-    
-    // Generate auth token with role included
+    // All verified users get admin privileges
+    // Generate auth token with admin role
     const token = jwt.sign({ 
       username: user.username,
-      role: isAdmin ? 'admin' : 'user'
+      role: 'admin' // Grant admin role to all verified users
     }, JWT_SECRET, { expiresIn: '1h' });
     
     res.status(200).json({ 
       token, 
       username: user.username,
-      role: isAdmin ? 'admin' : 'user'
+      role: 'admin' // Return admin role for all verified users
     });
   } catch (error) {
     console.error('Login error:', error);

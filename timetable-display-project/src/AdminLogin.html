@@ -375,14 +375,7 @@
                 }
                 
                 // Show detailed instructions
-                alert(`Registration successful! 
-                
-1. An email has been sent to ${email}
-2. Please check your inbox AND spam folder
-3. Click the verification link in the email
-4. Return to this page to log in
-                
-If you don't receive the email within a few minutes, try logging in and you'll see an option to resend the verification email.`);
+                alert(`Registration successful!`);
                 
                 document.getElementById('signupModal').style.display = 'none';
             } catch (error) {
@@ -410,35 +403,21 @@ If you don't receive the email within a few minutes, try logging in and you'll s
                 const data = await response.json();
                 
                 if (!response.ok) {
-                    // If the error is about verification, show resend option
-                    if (data.error && data.error.includes('verify your email')) {
-                        if (confirm(data.error + "\n\nWould you like to resend the verification email?")) {
-                            // Call the resend verification endpoint
-                            const resendResponse = await fetch('/api/resend-verification', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ username, email: username + '@example.com' }), // Use email if available
-                            });
-                            
-                            const resendData = await resendResponse.json();
-                            alert(resendData.message || 'Verification email sent! Please check your inbox and spam folder.');
-                        }
-                        return;
-                    }
+                    // Handle verification error logic...
                     throw new Error(data.error || 'Login failed');
                 }
                 
-                // Store auth token and user info
+                // Store auth token and user info INCLUDING ROLE
                 sessionStorage.setItem('authToken', data.token);
                 sessionStorage.setItem('loggedIn', 'true');
                 sessionStorage.setItem('currentUser', username);
+                sessionStorage.setItem('userRole', data.role || 'admin'); // Ensure role is set
                 
                 if (rememberMe) {
                     localStorage.setItem('rememberedUser', username);
                 }
                 
+                console.log("Login successful. Role:", data.role);
                 window.location.href = 'AdminPanel.html';
             } catch (error) {
                 alert(error.message);
