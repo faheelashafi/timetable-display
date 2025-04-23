@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Display</title>
+    <link rel="stylesheet" href="../styles/styles.css">
+    <script src="../scripts/timetable.js"></script>
+</head>
+<body>
+    <div class="timetable-header">
+        <h1>Time Table</h1>
+        <h3>DEPT. OF CS & IT - University of Chakwal</h3>
+    </div>
+    <div class="table-container">
+        <table class="table" id="timetableDisplay">
+            <thead>
+                <tr>
+                    <th>Day</th>
+                    <th>Session</th>
+                    <th>01:00-01:30</th>
+                    <th>01:30-02:00</th>
+                    <th>02:00-02:30</th>
+                    <th>02:30-03:00</th>
+                    <th>03:00-03:30</th>
+                    <th>03:30-04:00</th>
+                    <th>04:00-04:30</th>
+                    <th>04:30-05:00</th>
+                    <th>05:00-05:30</th>
+                    <th>05:30-06:00</th>
+                    <th>06:00-06:30</th>
+                    <th>06:30-07:00</th>
+                </tr>
+            </thead>
+            <tbody id="timetableBody">
+                <!-- Timetable entries will be displayed here -->
+            </tbody>
+        </table>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+            renderTimetable(entries);
+        });
+    </script>
+</body>
+</html>
