@@ -359,22 +359,7 @@
             }
             
             try {
-                // Send registration request to API
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, email, password }),
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Registration failed');
-                }
-                
-                // Show detailed instructions
+                // Simulate registration success
                 alert(`Registration successful!`);
                 
                 document.getElementById('signupModal').style.display = 'none';
@@ -391,33 +376,17 @@
             const rememberMe = document.getElementById('rememberMe').checked;
             
             try {
-                // Send login request to API
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ username, password }),
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    // Handle verification error logic...
-                    throw new Error(data.error || 'Login failed');
-                }
-                
-                // Store auth token and user info INCLUDING ROLE
-                sessionStorage.setItem('authToken', data.token);
+                // Simulate login success
+                sessionStorage.setItem('authToken', 'dummyToken');
                 sessionStorage.setItem('loggedIn', 'true');
                 sessionStorage.setItem('currentUser', username);
-                sessionStorage.setItem('userRole', data.role || 'admin'); // Ensure role is set
+                sessionStorage.setItem('userRole', 'admin'); // Ensure role is set
                 
                 if (rememberMe) {
                     localStorage.setItem('rememberedUser', username);
                 }
                 
-                console.log("Login successful. Role:", data.role);
+                console.log("Login successful. Role: admin");
                 window.location.href = 'AdminPanel.html';
             } catch (error) {
                 alert(error.message);
@@ -435,39 +404,8 @@
             }
             
             try {
-                // Show loading state
-                const submitButton = this.querySelector('button[type="submit"]');
-                const originalText = submitButton.textContent;
-                submitButton.disabled = true;
-                submitButton.textContent = 'Sending...';
-                
-                const response = await fetch('/api/forgot-password', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ email }),
-                });
-                
-                const data = await response.json();
-                
-                // Reset button state
-                submitButton.disabled = false;
-                submitButton.textContent = originalText;
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Password reset failed');
-                }
-                
-                // Show success message
-                alert(data.message || 'Password reset email sent! Please check your inbox.');
-                
-                // For testing, if a test reset link is provided
-                if (data.testResetLink) {
-                    if (confirm('For testing purposes, click OK to open the reset link directly.')) {
-                        window.open(data.testResetLink, '_blank');
-                    }
-                }
+                // Simulate password reset success
+                alert('Password reset email sent! Please check your inbox.');
                 
                 document.getElementById('forgotModal').style.display = 'none';
             } catch (error) {

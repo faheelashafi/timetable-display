@@ -2,15 +2,9 @@
   "name": "timetable-display-project",
   "version": "1.0.0",
   "description": "University Timetable Display System",
-  "main": "server/server.js",
+  "main": "index.html",
   "scripts": {
-    "dev": "node server/server.js",
-    "build": "echo 'No build step required'"
+    "start": "echo 'Open index.html in a browser to run the application'"
   },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.0"
-  }
+  "dependencies": {}
 }

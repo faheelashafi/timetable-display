@@ -1,53 +1,3 @@
-// Add this debugging function at the top of your file
-function debugTimeFormatting(entry) {
-    console.log(`Entry time format check: startTime=${entry.startTime} (${typeof entry.startTime}), endTime=${entry.endTime} (${typeof entry.endTime})`);
-    return entry;
-}
-
-// Add this function at the top of your file
-function debugTimeTableEntries() {
-  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-  console.log('DEBUGGING ENTRIES:', entries);
-  console.log('Entry count:', entries.length);
-  if (entries.length > 0) {
-    console.log('Sample entry:', entries[0]);
-  } else {
-    console.warn('No entries found in localStorage!');
-  }
-  return entries;
-}
-
-// Add this function to your script
-function repairLocalStorageEntries() {
-  // Check for entries under different possible key names
-  const possibleKeys = ['timetableEntries', 'TimeTableEntries', 'timeTableEntries', 'entries'];
-  let entries = [];
-  
-  for (const key of possibleKeys) {
-    const data = localStorage.getItem(key);
-    if (data) {
-      try {
-        const parsedData = JSON.parse(data);
-        if (Array.isArray(parsedData) && parsedData.length > 0) {
-          console.log(`Found ${parsedData.length} entries under key "${key}"`);
-          entries = parsedData;
-          break;
-        }
-      } catch (e) {
-        console.error(`Error parsing data from key "${key}":`, e);
-      }
-    }
-  }
-  
-  // Save to the correct key
-  if (entries.length > 0) {
-    localStorage.setItem('timetableEntries', JSON.stringify(entries));
-    console.log(`Repaired: Saved ${entries.length} entries to 'timetableEntries' key`);
-  }
-  
-  return entries;
-}
-
 // Updated time utilities for more reliable comparison
 function normalizeTimeFormat(timeString) {
     if (!timeString) return '00:00';
@@ -743,45 +693,13 @@ if (timetableForm) {
     });
 }
 
-// Update the ensureTestEntryExists function to properly save the entry
-function ensureTestEntryExists() {
-  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-  
-  if (entries.length === 0) {
-    console.log("No entries found, adding a test entry");
-    
-    const testEntry = {
-      id: Date.now(),
-      day: 'Monday',
-      session: '2024',
-      courseCode: 'IT-415',
-      courseName: 'Web Application Development',
-      creditHours: '3',
-      teacherName: 'Dr. Example',
-      venue: 'Room 101',
-      timeSlot: '01:00-02:30',
-      startTime: '01:00',
-      endTime: '02:30',
-      isLab: false,
-      displayTimeSlot: '01:00-02:30'
-    };
-    
-    entries.push(testEntry);
-    localStorage.setItem('timetableEntries', JSON.stringify(entries));
-    localStorage.setItem('timetable_lastUpdate', Date.now());
-    console.log("Test entry added successfully!");
-    return entries;
-  }
-  return entries;
-}
-
 // Clean up multiple event listeners by using a single initialization function
 function initializeApplication() {
   console.log("Initializing application...");
   
   // Step 1: Make sure entries exist in localStorage
-  const entries = repairLocalStorageEntries();
-  console.log(`Found ${entries.length} entries in localStorage after repair`);
+  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+  console.log(`Found ${entries.length} entries in localStorage`);
   
   // Step 2: Add a test entry if none exist
   if (entries.length === 0) {

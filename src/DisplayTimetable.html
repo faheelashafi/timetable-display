@@ -40,6 +40,10 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+            console.log('Loaded', entries.length, 'entries from localStorage');
+            if (entries.length > 0) {
+                console.log('First entry:', entries[0]);
+            }
             renderTimetable(entries);
         });
     </script>
