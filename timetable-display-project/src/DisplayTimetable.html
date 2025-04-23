@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timetable Display</title>
     <link rel="stylesheet" href="../styles/styles.css">
+    <script src="../scripts/timetable.js"></script>
 </head>
 <body>
-   
-
-    <!-- Simplified Timetable Header -->
     <div class="timetable-header">
-        <h1><b>Time Table</b></h1>
-        <h3><b>DEPT. OF CS & IT - University of Chakwal</b></h3>
+        <h1>Time Table</h1>
+        <h3>DEPT. OF CS & IT - University of Chakwal</h3>
     </div>
-
-    <!-- Timetable -->
     <div class="table-container">
         <table class="table" id="timetableDisplay">
             <thead>
@@ -37,147 +33,14 @@
                 </tr>
             </thead>
             <tbody id="timetableBody">
-                <!-- Timetable will be dynamically generated here -->
+                <!-- Timetable entries will be displayed here -->
             </tbody>
         </table>
     </div>
-
-    <!-- Load the timetable.js script -->
-    <script src="../scripts/timetable.js"></script>
-    
     <script>
-        // Render the timetable when the page loads
         document.addEventListener('DOMContentLoaded', function() {
-            // Get timetable entries from localStorage
-            const timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-            console.log('Entries loaded:', timetableEntries);
-            
-            // Get the table body
-            const tableBody = document.getElementById('timetableBody');
-            
-            // Clear existing content
-            tableBody.innerHTML = '';
-            
-            // If no entries, show a message
-            if (timetableEntries.length === 0) {
-                const emptyRow = document.createElement('tr');
-                const emptyCell = document.createElement('td');
-                emptyCell.colSpan = 14;
-                emptyCell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
-                emptyCell.style.textAlign = 'center';
-                emptyCell.style.padding = '20px';
-                emptyRow.appendChild(emptyCell);
-                tableBody.appendChild(emptyRow);
-                return;
-            }
-            
-            // Group entries by day and session
-            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const timeSlots = [
-                '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
-                '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
-            ];
-            
-            // Process each day
-            days.forEach(day => {
-                const dayEntries = timetableEntries.filter(entry => entry.day === day);
-                if (dayEntries.length === 0) return;
-                
-                // Get unique sessions for this day
-                const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-                
-                // For each session, create a row
-                sessions.forEach((session, sessionIndex) => {
-                    const row = document.createElement('tr');
-                    // Add batch-specific background color - MAKE SURE THIS IS APPLIED
-                    row.className = `batch-${session}`;
-                    
-                    // Add day cell (only for first session in the day)
-                    if (sessionIndex === 0) {
-                        const dayCell = document.createElement('td');
-                        dayCell.className = 'day-cell';
-                        dayCell.textContent = day;
-                        dayCell.rowSpan = sessions.length;
-                        row.appendChild(dayCell);
-                    }
-                    
-                    // Add session cell
-                    const sessionCell = document.createElement('td');
-                    sessionCell.className = 'session-cell';
-                    sessionCell.textContent = session;
-                    row.appendChild(sessionCell);
-                    
-                    // Get entries for this session
-                    const sessionEntries = dayEntries.filter(entry => entry.session === session);
-                    
-                    // Add cells for each time slot
-                    let slotIndex = 0;
-                    while (slotIndex < timeSlots.length) {
-                        const timeSlot = timeSlots[slotIndex];
-                        
-                        // Find an entry for this time slot
-                        const entry = sessionEntries.find(e => {
-                            const startMinutes = convertToMinutes(e.startTime);
-                            const endMinutes = convertToMinutes(e.endTime);
-                            const slotMinutes = convertToMinutes(timeSlot);
-                            return slotMinutes >= startMinutes && slotMinutes < endMinutes;
-                        });
-                        
-                        if (entry) {
-                            // Calculate how many slots this entry spans
-                            const startMinutes = convertToMinutes(entry.startTime);
-                            const endMinutes = convertToMinutes(entry.endTime);
-                            const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-                            
-                            // Create the cell for this entry
-                            const cell = document.createElement('td');
-                            cell.className = 'course-cell';
-
-                            // Highlight labs differently
-                            if (entry.isLab || entry.courseCode && entry.courseCode.toLowerCase().includes('lab')) {
-                                cell.className += ' lab-course';
-                                cell.textContent = entry.courseCode + ' Lab';
-                            } else {
-                                cell.textContent = entry.courseCode;
-                            }
-                            cell.colSpan = spanCount;
-                            
-                            // Add tooltip with extended information
-                            cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
-                            
-                            row.appendChild(cell);
-                            
-                            // Skip ahead by the span count
-                            slotIndex += spanCount;
-                        } else {
-                            // Empty cell
-                            const cell = document.createElement('td');
-                            row.appendChild(cell);
-                            slotIndex++;
-                        }
-                    }
-                    
-                    // Add the row to the table
-                    tableBody.appendChild(row);
-                });
-            });
-            
-            // Helper function to convert time to minutes
-            function convertToMinutes(timeString) {
-                if (!timeString) return 0;
-                
-                // Handle both 24-hour (13:00) and 12-hour (01:00) formats
-                const parts = timeString.split(':');
-                let hours = parseInt(parts[0]);
-                const minutes = parseInt(parts[1] || 0);
-                
-                // If hours is between 1 and 7, assume it's PM (13:00 - 19:00)
-                if (hours >= 1 && hours <= 7 && parts[0].length === 2) {
-                    hours += 12;
-                }
-                
-                return hours * 60 + minutes;
-            }
+            const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+            renderTimetable(entries);
         });
     </script>
 </body>

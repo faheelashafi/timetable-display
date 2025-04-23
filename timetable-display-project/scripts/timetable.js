@@ -4,6 +4,50 @@ function debugTimeFormatting(entry) {
     return entry;
 }
 
+// Add this function at the top of your file
+function debugTimeTableEntries() {
+  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+  console.log('DEBUGGING ENTRIES:', entries);
+  console.log('Entry count:', entries.length);
+  if (entries.length > 0) {
+    console.log('Sample entry:', entries[0]);
+  } else {
+    console.warn('No entries found in localStorage!');
+  }
+  return entries;
+}
+
+// Add this function to your script
+function repairLocalStorageEntries() {
+  // Check for entries under different possible key names
+  const possibleKeys = ['timetableEntries', 'TimeTableEntries', 'timeTableEntries', 'entries'];
+  let entries = [];
+  
+  for (const key of possibleKeys) {
+    const data = localStorage.getItem(key);
+    if (data) {
+      try {
+        const parsedData = JSON.parse(data);
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          console.log(`Found ${parsedData.length} entries under key "${key}"`);
+          entries = parsedData;
+          break;
+        }
+      } catch (e) {
+        console.error(`Error parsing data from key "${key}":`, e);
+      }
+    }
+  }
+  
+  // Save to the correct key
+  if (entries.length > 0) {
+    localStorage.setItem('timetableEntries', JSON.stringify(entries));
+    console.log(`Repaired: Saved ${entries.length} entries to 'timetableEntries' key`);
+  }
+  
+  return entries;
+}
+
 // Updated time utilities for more reliable comparison
 function normalizeTimeFormat(timeString) {
     if (!timeString) return '00:00';
@@ -16,11 +60,14 @@ function normalizeTimeFormat(timeString) {
     return timeString;
 }
 
-// Updated convertToMinutes function
+// Replace the broken convertToMinutes function with this fixed version
 function convertToMinutes(timeString) {
     if (!timeString) return 0;
     
+    // First normalize the time format
     const normalizedTime = normalizeTimeFormat(timeString);
+    
+    // Now use the normalized time
     const parts = normalizedTime.split(':');
     let hours = parseInt(parts[0]);
     const minutes = parseInt(parts[1] || 0);
@@ -65,9 +112,15 @@ function checkLogin() {
 // Initialize timetable entries from localStorage
 let timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
 
-// Save entries to localStorage
+// Save entries to localStorage with timestamp for cross-page sync
 function saveEntries() {
-    localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
+    try {
+        localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
+        localStorage.setItem('timetable_lastUpdate', Date.now());
+        console.log(`Saved ${timetableEntries.length} entries to localStorage`);
+    } catch (error) {
+        console.error('Error saving entries to localStorage:', error);
+    }
 }
 
 // Data management system for suggestions and autocomplete
@@ -129,7 +182,6 @@ const dataManager = {
         
         const data = this.getData(key);
         const lowerInput = input.toLowerCase();
-        
         return data.filter(item => 
             item.toLowerCase().includes(lowerInput)
         );
@@ -146,7 +198,6 @@ const dataManager = {
     // Import data from existing entries
     importFromEntries: function() {
         const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-        
         const teacherNames = entries.map(e => e.teacherName).filter(Boolean);
         const venues = entries.map(e => e.venue).filter(Boolean);
         const courseNames = entries.map(e => e.courseName).filter(Boolean);
@@ -159,7 +210,7 @@ const dataManager = {
         
         console.log('Imported data from existing entries');
     },
-
+    
     // Get data as a structured object with metadata
     getDataWithMetadata: function(key) {
         const data = this.getData(key);
@@ -177,13 +228,11 @@ const dataManager = {
         
         const data = this.getData(key);
         const index = data.indexOf(item);
-        
         if (index !== -1) {
             data.splice(index, 1);
             this.saveData(key, data);
             return true;
         }
-        
         return false;
     },
     
@@ -198,38 +247,35 @@ const dataManager = {
     }
 };
 
-// Add a new entry with extended course information
-const originalAddEntry = function(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
-    // Create the new entry
+// Add or update the addEntry function
+function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab) {
+    // Create a unique ID for the entry
+    const entryId = Date.now();
+    
+    // Create the entry object
     const entry = {
-        id: Date.now(),
-        day,
-        session,
-        courseCode,
-        courseName,
-        creditHours,
-        teacherName,
-        venue,
-        timeSlot,
-        startTime,
-        endTime,
-        isLab: isLab || false,
-        displayTimeSlot: `${startTime}-${endTime}`,
+        id: entryId,
+        day: day,
+        session: session,
+        courseCode: courseCode,
+        courseName: courseName,
+        creditHours: creditHours,
+        teacherName: teacherName,
+        venue: venue,
+        displayTimeSlot: displayTimeSlot,
+        startTime: startTime,
+        endTime: endTime,
+        isLab: isLab
     };
-
-    console.log('Adding entry with course details:', entry);
-
-    // Add the entry to the array and save it
+    
+    // Add to the global array
     timetableEntries.push(entry);
-    saveEntries();
+    
+    // Save to localStorage
+    localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
+    
     return entry;
-};
-
-addEntry = function(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab) {
-    const entry = originalAddEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, timeSlot, startTime, endTime, isLab);
-    dataManager.storeEntryData(entry);
-    return entry;
-};
+}
 
 // Delete a specific entry by ID
 function deleteEntry(id) {
@@ -246,143 +292,69 @@ function deleteAllEntries() {
     }
 }
 
-// Update session dropdown based on configuration
-function updateSessionOptions() {
-    autoUpdateSessionOptions();
-}
-
-// Determine available sessions based on current year and academic semester
+// Replace the autoUpdateSessionOptions function with the original version
 function autoUpdateSessionOptions() {
     const sessionDropdown = document.getElementById('session');
-    if (!sessionDropdown) return;
-    
-    // Clear existing options
-    sessionDropdown.innerHTML = '';
-    
-    // Get current date
-    const today = new Date();
-    const currentYear = today.getFullYear();
-    const currentMonth = today.getMonth(); // 0-11 (Jan-Dec)
-    
-    // Determine if we're in Spring (Jan-June) or Fall (July-Dec) semester
-    const isSpring = currentMonth >= 0 && currentMonth <= 5; // January (0) to June (5)
-    const isFall = currentMonth >= 6 && currentMonth <= 11; // July (6) to December (11)
-    
-    // Calculate the years to include - 4 active batches
-    let startYear, endYear;
-    
-    if (isFall) {
-        // Fall semester (July-Dec): Show 1st, 3rd, 5th, 7th semesters
-        startYear = currentYear - 3;
-        endYear = currentYear;
-    } else {
-        // Spring semester (Jan-June): Show 2nd, 4th, 6th, 8th semesters
-        startYear = currentYear - 4;
-        endYear = currentYear - 1;
-    }
-    
-    // Add options for the 4 active batches (ordered newest to oldest)
-    for (let year = endYear; year >= startYear; year--) {
-        const option = document.createElement('option');
-        option.value = year;
-        
-        // Calculate which semester this batch is in
-        const yearsElapsed = endYear - year;
-        let semester;
-        
-        if (isFall) {
-            // Fall semester: Odd-numbered semesters
-            switch (yearsElapsed) {
-                case 0: semester = "1st"; break;
-                case 1: semester = "3rd"; break;
-                case 2: semester = "5th"; break;
-                case 3: semester = "7th"; break;
-                default: semester = "Unknown";
-            }
-        } else {
-            // Spring semester: Even-numbered semesters
-            switch (yearsElapsed) {
-                case 0: semester = "2nd"; break;
-                case 1: semester = "4th"; break;
-                case 2: semester = "6th"; break;
-                case 3: semester = "8th"; break;
-                default: semester = "Unknown";
-            }
-        }
-        
-        const semesterType = isFall ? "Fall" : "Spring";
-        option.textContent = `${year} (${semester} Semester - ${semesterType})`;
-        sessionDropdown.appendChild(option);
-    }
-    
-    console.log(`Auto-configured ${isFall ? "Fall" : "Spring"} semester sessions from ${startYear} to ${endYear}`);
-}
-
-// Display entries in the admin panel
-function displayEntriesInAdmin() {
-    const entriesList = document.getElementById('entriesList');
-    if (!entriesList) return;
-    
-    entriesList.innerHTML = ''; // Clear existing entries
-    
-    if (timetableEntries.length === 0) {
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 5;
-        cell.textContent = 'No entries yet. Add some entries above.';
-        cell.style.textAlign = 'center';
-        cell.style.padding = '20px';
-        row.appendChild(cell);
-        entriesList.appendChild(row);
+    if (!sessionDropdown) {
         return;
     }
     
-    // Sort entries by day, session, and time slot
-    const sortedEntries = [...timetableEntries].sort((a, b) => {
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const dayComparison = days.indexOf(a.day) - days.indexOf(b.day);
-        if (dayComparison !== 0) return dayComparison;
-        
-        const sessionComparison = a.session - b.session;
-        if (sessionComparison !== 0) return sessionComparison;
-        
-        return a.startTime.localeCompare(b.startTime);
-    });
+    // Clear existing options
+    while (sessionDropdown.options.length > 0) {
+        sessionDropdown.remove(0);
+    }
     
-    sortedEntries.forEach(entry => {
-        const row = document.createElement('tr');
-        
-        const dayCell = document.createElement('td');
-        dayCell.textContent = entry.day;
-        
-        const sessionCell = document.createElement('td');
-        sessionCell.textContent = entry.session;
-        
-        const courseCell = document.createElement('td');
-        courseCell.textContent = entry.courseName;
-        
-        const timeCell = document.createElement('td');
-        timeCell.textContent = entry.displayTimeSlot;
-        
-        const actionCell = document.createElement('td');
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'delete-btn';
-        deleteButton.textContent = 'Delete';
-        deleteButton.addEventListener('click', () => {
-            deleteEntry(entry.id);
-            displayEntriesInAdmin();
-        });
-        
-        actionCell.appendChild(deleteButton);
-        
-        row.appendChild(dayCell);
-        row.appendChild(sessionCell);
-        row.appendChild(courseCell);
-        row.appendChild(timeCell);
-        row.appendChild(actionCell);
-        
-        entriesList.appendChild(row);
-    });
+    // Add options for years 2021-2024
+    const option1 = document.createElement('option');
+    option1.value = '2021';
+    option1.textContent = '2021';
+    sessionDropdown.appendChild(option1);
+    
+    const option2 = document.createElement('option');
+    option2.value = '2022';
+    option2.textContent = '2022';
+    sessionDropdown.appendChild(option2);
+    
+    const option3 = document.createElement('option');
+    option3.value = '2023';
+    option3.textContent = '2023';
+    sessionDropdown.appendChild(option3);
+    
+    const option4 = document.createElement('option');
+    option4.value = '2024';
+    option4.textContent = '2024';
+    sessionDropdown.appendChild(option4);
+    
+    // Select the first option by default
+    if (sessionDropdown.options.length > 0) {
+        sessionDropdown.selectedIndex = 0;
+    }
+}
+
+// Display entries in the admin panel (updated version)
+function displayEntriesInAdmin() {
+    const entriesList = document.getElementById('entriesList');
+    if (!entriesList) {
+        console.warn("Admin entries table not found (id='entriesList') - are you on the admin panel page?");
+        return;
+    }
+
+    // Always reload from localStorage to get the latest data
+    const entriesJson = localStorage.getItem('timetableEntries');
+    console.log("Raw entries from localStorage:", entriesJson);
+    
+    try {
+        timetableEntries = JSON.parse(entriesJson) || [];
+    } catch (error) {
+        console.error("Error parsing timetable entries from localStorage:", error);
+        timetableEntries = [];
+    }
+
+    console.log(`Displaying ${timetableEntries.length} entries in admin panel`);
+    entriesList.innerHTML = ''; // Clear existing entries
+    
+    // Implement the rest of the function to display entries
+    // ...
 }
 
 // Fixed generatePDF function - replace the existing function with this one
@@ -392,37 +364,28 @@ function generatePDF() {
         
         // Check if jsPDF is loaded
         if (typeof window.jspdf === 'undefined') {
-            if (typeof window.jspdf === 'undefined') {
-                window.jspdf = window.jspdf || {};
-                if (typeof jsPDF !== 'undefined') {
-                    window.jspdf.jsPDF = jsPDF;
-                }
+            window.jspdf = window.jspdf || {};
+            if (typeof jsPDF !== 'undefined') {
+                window.jspdf.jsPDF = jsPDF;
             }
         }
         
-        // Get jsPDF constructor
         const { jsPDF } = window.jspdf;
         if (!jsPDF) {
             alert("PDF generation failed: jsPDF library not loaded properly");
             return;
         }
         
-        // Create a new PDF document (landscape orientation for timetable)
         const doc = new jsPDF('l', 'mm', 'a4');
-        
-        // Add header
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.text('Time Table Fall Semester 2024', doc.internal.pageSize.width / 2, 15, { align: 'center' });
-        
         doc.setFontSize(14);
         doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
             doc.internal.pageSize.width / 2, 22, { align: 'center' });
-        
         doc.setFontSize(12);
         doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
         
-        // Group entries by session
         const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         const timeSlots = [
@@ -430,93 +393,53 @@ function generatePDF() {
             '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', '06:00-06:30', '06:30-07:00'
         ];
         
-        // Debug all entries
-        console.log("All timetable entries:", timetableEntries);
-        
-        // Set up timetable headers
         const headers = ['Day', 'Session', ...timeSlots.map(slot => slot)];
-        
-        // Set up timetable data
         let tableData = [];
         
-        // Process each day and session
         days.forEach(day => {
             const dayEntries = timetableEntries.filter(entry => entry.day === day);
             if (dayEntries.length === 0) return;
             
-            console.log(`Entries for ${day}:`, dayEntries);
-            
             const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-            
             daySessions.forEach((session, index) => {
                 const row = [];
-                
-                // Add day (only for first session)
                 row.push(index === 0 ? day : '');
-                
-                // Add session
                 row.push(session);
-                
-                // Get entries for this session/day
                 const sessionEntries = dayEntries.filter(entry => entry.session.toString() === session.toString());
-                console.log(`Entries for ${day}, session ${session}:`, sessionEntries);
                 
-                // Track slots that are already filled
                 let skipSlots = 0;
-                
-                // Fill each time slot
                 for (let i = 0; i < timeSlots.length; i++) {
-                    // Skip slots that are already filled by previous entries
                     if (skipSlots > 0) {
                         skipSlots--;
                         continue;
                     }
                     
-                    // Get the start time from the time slot
                     const slotParts = timeSlots[i].split('-');
                     const slotStart = slotParts[0];
                     
-                    // Find entry that overlaps with this time slot
                     let foundEntry = null;
                     for (const entry of sessionEntries) {
-
-                        // Use the improved time comparison function
                         if (isEntryInTimeSlot(entry, slotStart)) {
                             foundEntry = entry;
-                            console.log(`MATCH FOUND: ${entry.courseCode} at slot ${slotStart}`);
-                            
-                            // Calculate span count - how many 30-min slots this entry covers
                             const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
                             const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
                             const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
-                            
-                            // Add the course code to this cell
                             const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
                             row.push(cellContent);
-                            
-                            // Skip appropriate number of slots
                             skipSlots = spanCount - 1;
                             break;
                         }
                     }
                     
-                    // If no matching entry found, add empty cell
                     if (!foundEntry) {
                         row.push('');
                     }
                 }
-                
-                // Add row to table data
                 tableData.push(row);
             });
         });
         
-        console.log("Generated table data:", tableData);
-        
-        // Set up autotable configuration
         const startY = 35;
-        
-        // Generate the timetable
         doc.autoTable({
             head: [headers],
             body: tableData,
@@ -526,78 +449,64 @@ function generatePDF() {
                 cellPadding: 2
             },
             columnStyles: {
-                0: { cellWidth: 20 }, // Day column
-                1: { cellWidth: 15 }  // Session column
+                0: { cellWidth: 20 },
+                1: { cellWidth: 15 }
             },
             didParseCell: function(data) {
-                // Set colors based on session
                 if (data.section === 'body') {
                     const session = data.row.cells[1].text;
-                    
                     if (data.column.index < 2) {
-                        // Day and session columns
                         if (data.column.index === 0) {
-                            data.cell.styles.fillColor = [73, 124, 15]; // Green for day
-                            data.cell.styles.textColor = [255, 255, 255]; // White text
+                            data.cell.styles.fillColor = [73, 124, 15];
+                            data.cell.styles.textColor = [255, 255, 255];
                             data.cell.styles.fontStyle = 'bold';
                         } else {
-                            data.cell.styles.fillColor = [240, 240, 240]; // Light gray for session
+                            data.cell.styles.fillColor = [240, 240, 240];
                         }
                     } else if (data.row.cells[1].text) {
-                        // Set batch colors based on session year
                         if (data.row.cells[data.column.index].text) {
-                            // Has course content
                             const isLab = data.row.cells[data.column.index].text.includes('Lab');
-                            
+                            data.cell.styles.fillColor = [240, 240, 240];
                             if (isLab) {
-                                data.cell.styles.fillColor = [255, 243, 205]; // Light yellow for labs
+                                data.cell.styles.fillColor = [255, 243, 205];
                             } else {
                                 switch(session) {
-                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break; // Light lavender
-                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break; // Light green
-                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break; // Light blue
-                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break; // Light cream
+                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
+                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
+                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
+                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
                                 }
                             }
                         } else {
-                            // Empty cell - very light color based on batch
                             switch(session) {
-                                case '2021': data.cell.styles.fillColor = [250, 249, 255]; break; // Very light lavender
-                                case '2022': data.cell.styles.fillColor = [248, 253, 248]; break; // Very light green
-                                case '2023': data.cell.styles.fillColor = [247, 251, 255]; break; // Very light blue
-                                case '2024': data.cell.styles.fillColor = [255, 254, 250]; break; // Very light cream
+                                case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
+                                case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
+                                case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
+                                case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
                             }
                         }
                     }
                 } else if (data.section === 'head') {
-                    data.cell.styles.fillColor = [73, 124, 15]; // Green header
-                    data.cell.styles.textColor = [255, 255, 255]; // White text
+                    data.cell.styles.fillColor = [73, 124, 15];
+                    data.cell.styles.textColor = [255, 255, 255];
                     data.cell.styles.fontStyle = 'bold';
                 }
             }
         });
         
-        // Add course information tables for each session
         sessions.forEach((session, index) => {
-            // Add a page break for all but the first session
             if (index > 0) {
                 doc.addPage();
             } else if (doc.lastAutoTable) {
-                // Start below the timetable on the first page
                 doc.lastAutoTable.finalY += 15;
             }
             
-            // Add session header
             const sessionYear = parseInt(session);
             const currentYear = new Date().getFullYear();
             let semesterNum;
-            
-            // Determine semester number based on current month and session year
             const currentMonth = new Date().getMonth();
             const isFall = currentMonth >= 6 && currentMonth <= 11;
-            
             if (isFall) {
-                // Fall semester (July-Dec): Show 1st, 3rd, 5th, 7th semesters
                 const yearDiff = currentYear - sessionYear;
                 if (yearDiff === 0) semesterNum = "1st";
                 else if (yearDiff === 1) semesterNum = "3rd";
@@ -605,7 +514,6 @@ function generatePDF() {
                 else if (yearDiff === 3) semesterNum = "7th";
                 else semesterNum = "";
             } else {
-                // Spring semester (Jan-June): Show 2nd, 4th, 6th, 8th semesters
                 const yearDiff = (currentYear-1) - sessionYear;
                 if (yearDiff === 0) semesterNum = "2nd";
                 else if (yearDiff === 1) semesterNum = "4th";
@@ -613,22 +521,18 @@ function generatePDF() {
                 else if (yearDiff === 3) semesterNum = "8th";
                 else semesterNum = "";
             }
-            
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(12);
             const sessionTitle = `Session ${session} (${semesterNum} Semester)`;
             doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
             
-            // Filter courses for this session
             const sessionEntries = timetableEntries.filter(entry => entry.session.toString() === session.toString());
             const uniqueCourses = {};
-            
             sessionEntries.forEach(entry => {
                 if (!uniqueCourses[entry.courseCode]) {
                     uniqueCourses[entry.courseCode] = entry;
                 }
             });
-            
             const courseData = Object.values(uniqueCourses).map(course => [
                 course.courseCode,
                 course.courseName,
@@ -636,8 +540,6 @@ function generatePDF() {
                 course.teacherName || '',
                 course.venue
             ]);
-            
-            // Generate course table
             if (courseData.length > 0) {
                 doc.autoTable({
                     head: [['Course Code', 'Course Name', 'Credit Hrs', 'Teacher Name', 'Venue']],
@@ -648,30 +550,25 @@ function generatePDF() {
                         cellPadding: 3
                     },
                     headStyles: {
-                        fillColor: [73, 124, 15], // Green header
-                        textColor: [255, 255, 255], // White text
+                        fillColor: [73, 124, 15],
+                        textColor: [255, 255, 255],
                         fontStyle: 'bold'
                     },
                     alternateRowStyles: {
-                        fillColor: [248, 248, 248] // Light gray for alternate rows
+                        fillColor: [248, 248, 248]
                     },
                     margin: { left: 14, right: 14 }
                 });
             }
         });
         
-        // Add footer with date and page number
         const totalPages = doc.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             doc.setPage(i);
-            
-            // Footer with date
             const today = new Date().toLocaleDateString();
             doc.setFontSize(8);
             doc.setTextColor(100);
             doc.text(`Generated on: ${today}`, 14, doc.internal.pageSize.height - 10);
-            
-            // Page number
             doc.text(
                 `Page ${i} of ${totalPages}`,
                 doc.internal.pageSize.width - 25,
@@ -679,7 +576,6 @@ function generatePDF() {
             );
         }
         
-        // Save the PDF
         doc.save('timetable.pdf');
         console.log("PDF generated successfully!");
     } catch (error) {
@@ -691,16 +587,13 @@ function generatePDF() {
 // Replace the existing login response handling in your login form event listener
 document.getElementById('loginForm').addEventListener('submit', async function(e) {
     e.preventDefault();
-    
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
     const rememberMe = document.getElementById('rememberMe').checked;
-    
     if (!username || !password) {
         alert('Please enter both username and password.');
         return;
     }
-    
     try {
         const response = await fetch('/api/login', {
             method: 'POST',
@@ -709,22 +602,16 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
         });
         
         const data = await response.json();
-        
         if (!response.ok) {
             throw new Error(data.message || 'Login failed');
         }
-        
-        // Store auth token, user info AND ROLE
         sessionStorage.setItem('authToken', data.token);
         sessionStorage.setItem('loggedIn', 'true');
         sessionStorage.setItem('currentUser', username);
-        sessionStorage.setItem('userRole', data.role); // Store the user's role
-        
+        sessionStorage.setItem('userRole', data.role);
         if (rememberMe) {
             localStorage.setItem('rememberedUser', username);
         }
-        
-        // Only redirect to admin panel if user is an admin
         if (data.role === 'admin') {
             window.location.href = 'AdminPanel.html';
         } else {
@@ -736,168 +623,228 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
     }
 });
 
-// Add this at the end of your timetable.js file
+// Modify the existing form submission handler for adding new entries
+const timetableForm = document.getElementById('timetableForm');
+if (timetableForm) {
+    console.log("✅ Found timetable form, attaching submit handler");
+    timetableForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        console.log("Form submitted, processing...");
+        
+        // Get form values
+        const courseCode = document.getElementById('courseCode')?.value.trim() || '';
+        const courseName = document.getElementById('courseName')?.value.trim() || '';
+        const creditHours = document.getElementById('creditHours')?.value.trim() || '';
+        const venue = document.getElementById('venue')?.value.trim() || '';
+        const teacherName = document.getElementById('teacherName')?.value.trim() || '';
+        const session = document.getElementById('session')?.value || '';
+        const startTime = document.getElementById('startTime')?.value || '';
+        const endTime = document.getElementById('endTime')?.value || '';
+        const isLab = document.getElementById('isLab')?.checked || false;
+        
+        // Log form values for debugging
+        console.log("Form values:", {
+            courseCode, courseName, creditHours, venue, teacherName, session, startTime, endTime, isLab
+        });
+        
+        // Get selected days
+        const selectedDays = [];
+        document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
+            selectedDays.push(checkbox.value);
+        });
+        console.log("Selected days:", selectedDays);
+        
+        // Form validation
+        let error = false;
+        if (!courseCode) {
+            document.getElementById('courseCode').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('courseCode').classList.remove('input-error');
+        }
+        if (!courseName) {
+            document.getElementById('courseName').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('courseName').classList.remove('input-error');
+        }
+        if (!creditHours) {
+            document.getElementById('creditHours').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('creditHours').classList.remove('input-error');
+        }
+        if (!venue) {
+            document.getElementById('venue').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('venue').classList.remove('input-error');
+        }
+        if (!startTime) {
+            document.getElementById('startTime').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('startTime').classList.remove('input-error');
+        }
+        if (!endTime) {
+            document.getElementById('endTime').classList.add('input-error');
+            error = true;
+        } else {
+            document.getElementById('endTime').classList.remove('input-error');
+        }
+        if (selectedDays.length === 0) {
+            alert('Please select at least one day');
+            error = true;
+        }
+        if (startTime && endTime && startTime >= endTime) {
+            alert('End time must be after start time');
+            document.getElementById('endTime').classList.add('input-error');
+            error = true;
+        }
+        if (error) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        // Add entries for each selected day
+        let entryCount = 0;
+        selectedDays.forEach(day => {
+            addEntry(
+                day,
+                session,
+                courseCode,
+                courseName, 
+                creditHours,
+                teacherName,
+                venue,
+                `${startTime}-${endTime}`,  // timeSlot
+                startTime,
+                endTime,
+                isLab
+            );
+            entryCount++;
+        });
+
+        // Save to localStorage with timestamp for cross-window updates
+        saveEntries();
+
+        // Force immediate display update
+        displayEntriesInAdmin();
+        updateStats();
+
+        // Reset form
+        timetableForm.reset();
+
+        // Store update timestamp for cross-window sync
+        localStorage.setItem('timetable_lastUpdate', Date.now());
+
+        // Show success message
+        alert(`Successfully added ${entryCount} entries to the timetable.`);
+    });
+}
+
+// Update the ensureTestEntryExists function to properly save the entry
+function ensureTestEntryExists() {
+  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+  
+  if (entries.length === 0) {
+    console.log("No entries found, adding a test entry");
+    
+    const testEntry = {
+      id: Date.now(),
+      day: 'Monday',
+      session: '2024',
+      courseCode: 'IT-415',
+      courseName: 'Web Application Development',
+      creditHours: '3',
+      teacherName: 'Dr. Example',
+      venue: 'Room 101',
+      timeSlot: '01:00-02:30',
+      startTime: '01:00',
+      endTime: '02:30',
+      isLab: false,
+      displayTimeSlot: '01:00-02:30'
+    };
+    
+    entries.push(testEntry);
+    localStorage.setItem('timetableEntries', JSON.stringify(entries));
+    localStorage.setItem('timetable_lastUpdate', Date.now());
+    console.log("Test entry added successfully!");
+    return entries;
+  }
+  return entries;
+}
+
+// Clean up multiple event listeners by using a single initialization function
+function initializeApplication() {
+  console.log("Initializing application...");
+  
+  // Step 1: Make sure entries exist in localStorage
+  const entries = repairLocalStorageEntries();
+  console.log(`Found ${entries.length} entries in localStorage after repair`);
+  
+  // Step 2: Add a test entry if none exist
+  if (entries.length === 0) {
+    const newEntries = ensureTestEntryExists();
+    console.log(`Created test entry. Now have ${newEntries.length} entries.`);
+    
+    // Make sure global variable is updated
+    timetableEntries = newEntries;
+  } else {
+    // Make sure global variable matches localStorage
+    timetableEntries = entries;
+  }
+  
+  // Step 3: Initialize UI components
+  checkLogin();
+  autoUpdateSessionOptions();
+  
+  // Step 4: Set up event handlers
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', function() {
+      sessionStorage.removeItem('loggedIn');
+      sessionStorage.removeItem('currentUser');
+      window.location.href = 'AdminLogin.html';
+    });
+  }
+  
+  const generatePdfBtn = document.getElementById('generatePdf');
+  if (generatePdfBtn) {
+    generatePdfBtn.addEventListener('click', generatePDF);
+  }
+  
+  const viewStoredDataBtn = document.getElementById('viewStoredData');
+  if (viewStoredDataBtn) {
+    viewStoredDataBtn.addEventListener('click', displayStoredData);
+  }
+  
+  const clearAllEntriesBtn = document.getElementById('clearAllEntries');
+  if (clearAllEntriesBtn) {
+    clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
+  }
+  
+  // Step 5: Initialize data management
+  dataManager.importFromEntries();
+  populateDataLists();
+  setupDataListHandlers();
+  
+  // Step 6: Display entries
+  displayEntriesInAdmin();
+  
+  console.log("Application initialization complete!");
+}
+
+// Use a single DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', function() {
-    // Check login status
-    checkLogin();
-    
-    // Update session options automatically based on current year
-    autoUpdateSessionOptions();
-    
-    // Handle logout
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', function() {
-            sessionStorage.removeItem('loggedIn');
-            sessionStorage.removeItem('currentUser');
-            window.location.href = 'AdminLogin.html';
-        });
-    }
-    
-    // Handle form submission for adding new entries
-    const timetableForm = document.getElementById('timetableForm');
-    if (timetableForm) {
-        timetableForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Form validation
-            const courseCode = document.getElementById('courseCode').value.trim();
-            const courseName = document.getElementById('courseName').value.trim();
-            const creditHours = document.getElementById('creditHours').value.trim();
-            const venue = document.getElementById('venue').value.trim();
-            const teacherName = document.getElementById('teacherName').value.trim(); // Optional
-            const session = document.getElementById('session').value;
-            const startTime = document.getElementById('startTime').value;
-            const endTime = document.getElementById('endTime').value;
-            const isLab = document.getElementById('isLab').checked;
-            
-            // Get selected days
-            const selectedDays = [];
-            document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
-                selectedDays.push(checkbox.value);
-            });
-            
-            // Validate required fields
-            let error = false;
-            
-            if (!courseCode) {
-                document.getElementById('courseCode').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('courseCode').classList.remove('input-error');
-            }
-            
-            if (!courseName) {
-                document.getElementById('courseName').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('courseName').classList.remove('input-error');
-            }
-            
-            if (!creditHours) {
-                document.getElementById('creditHours').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('creditHours').classList.remove('input-error');
-            }
-            
-            if (!venue) {
-                document.getElementById('venue').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('venue').classList.remove('input-error');
-            }
-            
-            if (!startTime) {
-                document.getElementById('startTime').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('startTime').classList.remove('input-error');
-            }
-            
-            if (!endTime) {
-                document.getElementById('endTime').classList.add('input-error');
-                error = true;
-            } else {
-                document.getElementById('endTime').classList.remove('input-error');
-            }
-            
-            if (selectedDays.length === 0) {
-                alert('Please select at least one day');
-                error = true;
-            }
-            
-            // Additional validation: end time must be after start time
-            if (startTime && endTime && startTime >= endTime) {
-                alert('End time must be after start time');
-                document.getElementById('endTime').classList.add('input-error');
-                error = true;
-            }
-            
-            if (error) {
-                alert('Please fill in all required fields');
-                return;
-            }
-            
-            // Add entry for each selected day
-            let entryCount = 0;
-            selectedDays.forEach(day => {
-                addEntry(
-                    day,
-                    session,
-                    courseCode,
-                    courseName,
-                    creditHours,
-                    teacherName, // This is optional, can be empty
-                    venue,
-                    formatTimeFromInput(startTime),
-                    startTime,
-                    endTime,
-                    isLab
-                );
-                entryCount++;
-            });
-            
-            // Update display and reset form
-            displayEntriesInAdmin();
-            timetableForm.reset();
-            
-            // Show success message
-            alert(`Successfully added ${entryCount} entries to the timetable.`);
-        });
-    }
-    
-    // Generate PDF button
-    const generatePdfBtn = document.getElementById('generatePdf');
-    if (generatePdfBtn) {
-        generatePdfBtn.addEventListener('click', generatePDF);
-    }
-    
-    // View Stored Data button
-    const viewStoredDataBtn = document.getElementById('viewStoredData');
-    if (viewStoredDataBtn) {
-        viewStoredDataBtn.addEventListener('click', displayStoredData);
-    }
-    
-    // Delete All Entries button
-    const clearAllEntriesBtn = document.getElementById('clearAllEntries');
-    if (clearAllEntriesBtn) {
-        clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
-    }
-    
-    // Initialize data lists and autocomplete
-    dataManager.importFromEntries();
-    populateDataLists();
-    setupDataListHandlers();
-    
-    // Display existing entries in admin panel
-    displayEntriesInAdmin();
+  console.log("Document loaded, starting initialization");
+  // Slight delay to ensure DOM is fully ready
+  setTimeout(initializeApplication, 100);
 });
 
 // Helper function to format time for timetable
 function formatTimeFromInput(timeString) {
     if (!timeString) return '';
-    
     const [hours, minutes] = timeString.split(':');
     return `${hours}:${minutes}`;
 }
@@ -908,14 +855,10 @@ function displayStoredData() {
     const closeBtn = document.querySelector('#dataModal .close');
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
-    
-    // Get all data
     const teacherNames = dataManager.getData(dataManager.keys.teacherNames);
     const venues = dataManager.getData(dataManager.keys.venues);
     const courseNames = dataManager.getData(dataManager.keys.courseNames);
     const courseCodes = dataManager.getData(dataManager.keys.courseCodes);
-    
-    // Populate teacher names
     const teacherNamesContainer = document.getElementById('teacherNamesList');
     teacherNamesContainer.innerHTML = '';
     teacherNames.forEach(name => {
@@ -924,8 +867,6 @@ function displayStoredData() {
         div.textContent = name;
         teacherNamesContainer.appendChild(div);
     });
-    
-    // Populate venues
     const venuesContainer = document.getElementById('venuesList');
     venuesContainer.innerHTML = '';
     venues.forEach(venue => {
@@ -934,8 +875,6 @@ function displayStoredData() {
         div.textContent = venue;
         venuesContainer.appendChild(div);
     });
-    
-    // Populate course names
     const courseNamesContainer = document.getElementById('courseNamesList');
     courseNamesContainer.innerHTML = '';
     courseNames.forEach(name => {
@@ -944,8 +883,6 @@ function displayStoredData() {
         div.textContent = name;
         courseNamesContainer.appendChild(div);
     });
-    
-    // Populate course codes
     const courseCodesContainer = document.getElementById('courseCodesList');
     courseCodesContainer.innerHTML = '';
     courseCodes.forEach(code => {
@@ -954,69 +891,46 @@ function displayStoredData() {
         div.textContent = code;
         courseCodesContainer.appendChild(div);
     });
-    
-    // Populate course database
     const courseData = document.getElementById('courseData');
     courseData.innerHTML = '';
-    
-    // Create a unique list of courses by course code
     const uniqueCourses = {};
     timetableEntries.forEach(entry => {
         if (entry.courseCode && !uniqueCourses[entry.courseCode]) {
             uniqueCourses[entry.courseCode] = entry;
         }
     });
-    
     Object.values(uniqueCourses).forEach(course => {
         const row = document.createElement('tr');
-        
         const codeCell = document.createElement('td');
         codeCell.textContent = course.courseCode || '';
-        
         const nameCell = document.createElement('td');
         nameCell.textContent = course.courseName || '';
-        
         const hoursCell = document.createElement('td');
         hoursCell.textContent = course.creditHours || '';
-        
         const teacherCell = document.createElement('td');
         teacherCell.textContent = course.teacherName || '';
-        
         const venueCell = document.createElement('td');
         venueCell.textContent = course.venue || '';
-        
         row.appendChild(codeCell);
         row.appendChild(nameCell);
         row.appendChild(hoursCell);
         row.appendChild(teacherCell);
         row.appendChild(venueCell);
-        
         courseData.appendChild(row);
     });
-    
-    // Show modal
     modal.style.display = 'block';
-    
-    // Close modal when clicking the X
     closeBtn.onclick = function() {
         modal.style.display = 'none';
     };
-    
-    // Close modal when clicking outside
     window.onclick = function(event) {
         if (event.target == modal) {
             modal.style.display = 'none';
         }
     };
-    
-    // Handle tabs
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Remove active class from all buttons and contents
             tabBtns.forEach(b => b.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
-            
-            // Add active class to clicked button and corresponding content
             btn.classList.add('active');
             const tabId = btn.getAttribute('data-tab');
             document.getElementById(tabId).classList.add('active');
@@ -1036,10 +950,8 @@ function populateDataLists() {
 function populateListView(elementId, dataKey) {
     const listContainer = document.getElementById(elementId);
     if (!listContainer) return;
-    
     const items = dataManager.getData(dataKey);
     listContainer.innerHTML = '';
-    
     if (items.length === 0) {
         const emptyMessage = document.createElement('div');
         emptyMessage.className = 'empty-list-message';
@@ -1047,18 +959,14 @@ function populateListView(elementId, dataKey) {
         listContainer.appendChild(emptyMessage);
         return;
     }
-    
     items.forEach(item => {
         const listItem = document.createElement('div');
         listItem.className = 'list-item';
-        
         const itemText = document.createElement('span');
         itemText.className = 'list-item-text';
         itemText.textContent = item;
-        
         const actions = document.createElement('div');
         actions.className = 'list-item-actions';
-        
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'danger small';
         deleteBtn.textContent = 'Delete';
@@ -1066,7 +974,6 @@ function populateListView(elementId, dataKey) {
             deleteListItem(dataKey, item);
             populateListView(elementId, dataKey);
         });
-        
         actions.appendChild(deleteBtn);
         listItem.appendChild(itemText);
         listItem.appendChild(actions);
@@ -1095,19 +1002,12 @@ function setupDataListHandlers() {
 function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
     const addBtn = document.getElementById(buttonId);
     if (!addBtn) return;
-    
     addBtn.addEventListener('click', () => {
         const input = document.getElementById(inputId);
         const value = input.value.trim();
-        
         if (value) {
-            // Add to data store
             dataManager.addItem(dataKey, value);
-            
-            // Update the list view
             populateListView(listElementId, dataKey);
-            
-            // Clear the input
             input.value = '';
         }
     });
@@ -1116,24 +1016,225 @@ function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
 // Setup autocomplete for input fields
 function setupAutocomplete(inputElement, listId, dataKey) {
     if (!inputElement) return;
-    
-    // Create datalist if not exists
     let datalist = document.getElementById(listId);
     if (!datalist) {
         datalist = document.createElement('datalist');
         datalist.id = listId;
         document.body.appendChild(datalist);
     }
-    
-    // Link input to datalist
     inputElement.setAttribute('list', listId);
-    
-    // Populate datalist
     const items = dataManager.getData(dataKey);
     datalist.innerHTML = '';
     items.forEach(item => {
         const option = document.createElement('option');
         option.value = item;
         datalist.appendChild(option);
+    });
+}
+
+window.renderTimetable = function(entries) {
+    const tableBody = document.getElementById('timetableBody');
+    if (!tableBody) {
+        console.error("No timetableBody element found in document");
+        return;
+    }
+    
+    // Clear any existing content
+    tableBody.innerHTML = '';
+    
+    if (!entries || entries.length === 0) {
+        console.warn("No timetable entries to display");
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 14;
+        cell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
+        cell.style.textAlign = 'center';
+        cell.style.padding = '20px';
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+        return;
+    }
+    
+    console.log(`Rendering ${entries.length} entries to timetable`);
+    
+    // Group entries by day and session
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const timeSlots = [
+        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
+    ];
+    
+    days.forEach(day => {
+        const dayEntries = entries.filter(entry => entry.day === day);
+        if (dayEntries.length === 0) return;
+        
+        // Get unique sessions for this day
+        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+        
+        // For each session, create a row
+        sessions.forEach((session, sessionIndex) => {
+            const row = document.createElement('tr');
+            row.className = `batch-${session}`;
+            
+            // Add day cell (only for first session in the day)
+            if (sessionIndex === 0) {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = day;
+                dayCell.rowSpan = sessions.length;
+                row.appendChild(dayCell);
+            }
+            
+            // Add session cell
+            const sessionCell = document.createElement('td');
+            sessionCell.className = 'session-cell';
+            sessionCell.textContent = session;
+            row.appendChild(sessionCell);
+            
+            // Get entries for this session
+            const sessionEntries = dayEntries.filter(entry => entry.session === session);
+            
+            // Add cells for each time slot
+            let slotIndex = 0;
+            while (slotIndex < timeSlots.length) {
+                const timeSlot = timeSlots[slotIndex];
+                
+                // Find an entry for this time slot
+                const entry = sessionEntries.find(e => {
+                    const startMinutes = convertToMinutes(e.startTime);
+                    const endMinutes = convertToMinutes(e.endTime);
+                    const slotMinutes = convertToMinutes(timeSlot);
+                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+                });
+                
+                if (entry) {
+                    // Calculate how many slots this entry spans
+                    const startMinutes = convertToMinutes(entry.startTime);
+                    const endMinutes = convertToMinutes(entry.endTime);
+                    const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
+                    
+                    // Create the cell for this entry
+                    const cell = document.createElement('td');
+                    cell.className = 'course-cell';
+                    if (entry.isLab || (entry.courseCode && entry.courseCode.toLowerCase().includes('lab'))) {
+                        cell.className += ' lab-course';
+                        cell.textContent = entry.courseCode + ' Lab';
+                    } else {
+                        cell.textContent = entry.courseCode;
+                    }
+                    cell.colSpan = spanCount;
+                    cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
+                    row.appendChild(cell);
+                    
+                    // Skip ahead by the span count
+                    slotIndex += spanCount;
+                } else {
+                    // Empty cell
+                    const cell = document.createElement('td');
+                    row.appendChild(cell);
+                    slotIndex++;
+                }
+            }
+            
+            tableBody.appendChild(row);
+        });
+    });
+};
+
+// Function to load entries from localStorage and render them
+function loadAndRenderTimetable() {
+    const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+    window.renderTimetable(entries);
+}
+
+// Add this at the bottom of the file for simple entry display
+function renderTimetable(entries) {
+    const tableBody = document.getElementById('timetableBody');
+    if (!tableBody) return;
+    
+    tableBody.innerHTML = '';
+    
+    if (!entries || entries.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 14;
+        cell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
+        cell.style.textAlign = 'center';
+        cell.style.padding = '20px';
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+        return;
+    }
+    
+    // Group entries by day and session
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const timeSlots = [
+        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
+    ];
+    
+    days.forEach(day => {
+        const dayEntries = entries.filter(entry => entry.day === day);
+        if (dayEntries.length === 0) return;
+        
+        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+        
+        sessions.forEach((session, sessionIndex) => {
+            const row = document.createElement('tr');
+            row.className = `batch-${session}`;
+            
+            if (sessionIndex === 0) {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = day;
+                dayCell.rowSpan = sessions.length;
+                row.appendChild(dayCell);
+            }
+            
+            const sessionCell = document.createElement('td');
+            sessionCell.className = 'session-cell';
+            sessionCell.textContent = session;
+            row.appendChild(sessionCell);
+            
+            const sessionEntries = dayEntries.filter(entry => entry.session === session);
+            
+            let slotIndex = 0;
+            while (slotIndex < timeSlots.length) {
+                const timeSlot = timeSlots[slotIndex];
+                
+                const entry = sessionEntries.find(e => {
+                    const startMinutes = convertToMinutes(e.startTime);
+                    const endMinutes = convertToMinutes(e.endTime);
+                    const slotMinutes = convertToMinutes(timeSlot);
+                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+                });
+                
+                if (entry) {
+                    const startMinutes = convertToMinutes(entry.startTime);
+                    const endMinutes = convertToMinutes(entry.endTime);
+                    const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
+                    
+                    const cell = document.createElement('td');
+                    cell.className = 'course-cell';
+                    if (entry.isLab || (entry.courseCode && entry.courseCode.toLowerCase().includes('lab'))) {
+                        cell.className += ' lab-course';
+                        cell.textContent = entry.courseCode + ' Lab';
+                    } else {
+                        cell.textContent = entry.courseCode;
+                    }
+                    cell.colSpan = spanCount;
+                    cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
+                    row.appendChild(cell);
+                    
+                    slotIndex += spanCount;
+                } else {
+                    const cell = document.createElement('td');
+                    row.appendChild(cell);
+                    slotIndex++;
+                }
+            }
+            
+            tableBody.appendChild(row);
+        });
     });
 }

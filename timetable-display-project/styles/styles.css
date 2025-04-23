@@ -87,7 +87,7 @@ h1 {
     display: block;
     margin-bottom: 10px;
     font-weight: 600;
-    color: var(--primary-color);
+    color: var(black);
 }
 
 .form-group input {
