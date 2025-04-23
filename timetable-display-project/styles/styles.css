@@ -806,3 +806,25 @@ td:first-child {
     border-color: var(--danger-color) !important;
     background-color: rgba(231, 76, 60, 0.05) !important;
 }
+
+/* Add these session-based styles */
+.session-2021-cell {
+    background-color: #F2EFFF; /* Light purple */
+}
+
+.session-2022-cell {
+    background-color: #E8F7E8; /* Light green */
+}
+
+.session-2023-cell {
+    background-color: #E7F4FF; /* Light blue */
+}
+
+.session-2024-cell {
+    background-color: #FFFBEB; /* Light yellow */
+}
+
+.lab-class {
+    font-weight: bold;
+    font-style: italic;
+}
