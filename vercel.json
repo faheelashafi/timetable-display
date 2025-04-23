@@ -1,15 +1,15 @@
-{ "version": 2,
-   "builds": [
-     { "src": "src/**/*", "use": "@vercel/static" },
-     { "src": "styles/**/*", "use": "@vercel/static" },
-     { "src": "scripts/**/*", "use": "@vercel/static" },
-     { "src": "logo.png", "use": "@vercel/static" },
-     { "src": "index.html", "use": "@vercel/static" }
-   ],
-   "routes": [
-     { "src": "/", "dest": "/index.html" },
-     { "src": "/admin", "dest": "/src/AdminLogin.html" },
-     { "src": "/admin-panel", "dest": "/src/AdminPanel.html" },
-     { "src": "/(.*)", "dest": "/$1" }
-   ]
- }
+{
+  "version": 2,
+  "buildCommand": "",
+  "devCommand": "echo 'Open index.html in a browser to run the application'",
+  "outputDirectory": ".",
+  "builds": [
+    { "src": "**/*", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/admin", "dest": "/src/AdminLogin.html" },
+    { "src": "/admin-panel", "dest": "/src/AdminPanel.html" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
+}
