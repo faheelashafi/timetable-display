@@ -1,0 +1,830 @@
+/* Enhanced Timetable Styling */
+
+/* Modern color palette */
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #2ecc71;
+    --accent-color: #e74c3c;
+    --header-bg: #34495e;
+    --day-bg: #d6eaf8;
+    --session-bg: #eaecee;
+    --course-bg: #d5f5e3;
+    --course-alt-bg: #82e0aa;
+    --hover-bg: #f9f9f9;
+    --border-color: #bdc3c7;
+    --danger-color: #e74c3c;
+    --success-color: #2ecc71;
+    --warning-color: #f39c12;
+    --info-color: #3498db;
+    --light-bg: #f8f9fa;
+    --dark-bg: #ffffff;
+    --admin-panel-bg: #f5f7fa;
+    --admin-panel-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+    color: #333;
+    text-align: center;
+    line-height: 1.3;
+}
+
+header {
+    margin-bottom: 10px;
+}
+
+header h1 {
+    font-size: 2em;
+    margin: 10px 0;
+    color: #333;
+}
+
+header h2, header h3, header h4 {
+    margin: 5px 0;
+    color: #555;
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 20px auto;
+    overflow: hidden;
+}
+
+/* Header Styles */
+h1, h2, h3 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+    text-align: center;
+}
+
+h1 {
+    padding: 2px 0;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 10px;
+    font-size: 2em;
+}
+
+/* Login Form Styles */
+.login-container {
+    max-width: 450px;
+    margin: 80px auto 20px;
+    padding: 30px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: var(black);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.forgot-password {
+    text-align: right;
+    margin: 10px 0;
+}
+
+.forgot-password a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 14px;
+}
+
+.signup-prompt {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.signup-prompt a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* Button Styles */
+button, .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background-color: var(--primary-color);
+    color: white; /* Better contrast */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    width: auto;
+}
+
+button:hover, .btn:hover {
+    background-color: #3367d6;
+    transform: translateY(-1px);
+}
+
+button.danger {
+    background-color: var(--danger-color);
+}
+
+button.danger:hover {
+    background-color: #c0392b;
+}
+
+button.success {
+    background-color: var(--success-color);
+}
+
+button.success:hover {
+    background-color: #27ae60;
+}
+
+button.small {
+    padding: 6px 12px;
+    font-size: 14px;
+}
+
+.full-width {
+    display: block;
+    width: 100%;
+}
+
+/* Table Styles */
+.table-container {
+    margin: 10px auto;
+    width: 98%;
+    background: #fff;
+    padding: 10px;
+    border-radius: 6px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 5px 0;
+    font-size: 13px;
+    border: 1px solid #ddd;
+}
+
+.table th, 
+.table td {
+    border: 1px solid #ddd;
+}
+
+.table th, 
+.table .day-cell {
+    background-color: #4d9a4d !important; /* Lighter green for header */
+    color: white;
+    font-weight: 600;
+    text-align: center;
+}
+
+.table td {
+    padding: 6px 3px;
+    transition: all 0.2s ease;
+}
+
+.table .day-cell, 
+td:first-child {
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    padding: 5px 2px;
+}
+
+.table .session-cell {
+    background-color: #f9f9f9 !important;
+    color: #333;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+.table td.course-cell,
+.table td.has-course {
+    font-weight: 600;
+    color: #216a42; /* Darker green for better contrast */
+    text-align: center;
+    border: 1px solid rgba(39, 174, 96, 0.5);
+    box-shadow: inset 0 0 5px rgba(46, 204, 113, 0.2);
+    padding: 5px 2px;
+}
+
+.batch-2021 td.course-cell {
+    background-color: rgba(226, 214, 255, 0.3) !important; /* Very light lavender with transparency */
+}
+
+.batch-2022 td.course-cell {
+    background-color: rgba(200, 237, 204, 0.4) !important; /* Very light green with transparency */
+}
+
+.batch-2023 td.course-cell {
+    background-color: rgba(203, 232, 255, 0.4) !important; /* Very light blue with transparency */
+}
+
+.batch-2024 td.course-cell {
+    background-color: rgba(255, 250, 230, 0.4) !important; /* Very light yellow with transparency */
+}
+
+.batch-2021 {
+    background-color: #f2efff !important; /* Very light lavender */
+}
+
+.batch-2022 {
+    background-color: #e8f7e8 !important; /* Very light pastel green */
+}
+
+.batch-2023 {
+    background-color: #e7f4ff !important; /* Very light sky blue */
+}
+
+.batch-2024 {
+    background-color: #fffbeb !important; /* Very light cream/yellow */
+}
+
+.table tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+.table tr:hover {
+    background-color: var(--hover-bg);
+}
+
+.table td:empty {
+    background-color: white;
+    border: 1px solid #eee;
+}
+
+.table tr td:first-child,
+.table tr th:first-child {
+    border-left: none;
+}
+
+.table tr td:last-child,
+.table tr th:last-child {
+    border-right: none;
+}
+
+/* Timetable Header */
+.timetable-header {
+    text-align: center;
+    margin-bottom: 5px;
+    padding: 5px;
+    background: #f5f7fa;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.timetable-header h1 {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 5px 0;
+    color: #333;
+}
+
+.timetable-header h3 {
+    font-size: 14px;
+    font-weight: normal;
+    margin: 5px 0;
+    color: #666;
+}
+
+/* Admin Panel Styles */
+.admin-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-bottom: 30px;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.input-group {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f0f0f0;
+    transition: all 0.3s ease;
+}
+
+.input-group:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+    transform: translateY(-2px);
+}
+
+.input-group label {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: block;
+    font-size: 15px;
+}
+
+.input-group input, .input-group select {
+    width: 100%;
+    padding: 10px 1px;
+    border: 1px solid #e7e7e7;
+    border-radius: 6px;
+    font-size: 15px;
+    background-color: #fcfcfc;
+    transition: all 0.3s;
+}
+
+.input-group input:focus, .input-group select:focus {
+    border-color: var(--primary-color);
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+#timetableForm {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+    margin: 0 auto 30px;
+    max-width: 800px;
+}
+
+#timetableForm h3 {
+    color: #34495e;
+    font-size: 22px;
+    margin-bottom: 25px;
+    text-align: center;
+    position: relative;
+}
+
+#timetableForm h3:after {
+    content: "";
+    display: block;
+    width: 80px;
+    height: 3px;
+    background: var(--primary-color);
+    margin: 10px auto 0;
+    border-radius: 3px;
+}
+
+#adminPanel {
+    background: var(--admin-panel-bg);
+    border-radius: 12px;
+    box-shadow: var(--admin-panel-shadow);
+    padding: 20px;
+    margin-top: 30px;
+    position: relative;
+}
+
+#adminPanel h1 {
+    color: #2c3e50;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+.entries-section {
+    margin-top: 50px;
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+}
+
+.entries-section h3 {
+    font-size: 20px;
+    margin-bottom: 20px;
+    color: #2c3e50;
+    text-align: center;
+}
+
+/* Lists styling for data items */
+.data-lists-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.data-list-card {
+    flex: 1;
+    min-width: 250px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    padding: 20px;
+    border-top: 4px solid var(--primary-color);
+}
+
+.data-list-card h4 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #34495e;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.list-items {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+}
+
+.list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.list-item:hover {
+    background: #e9ecef;
+}
+
+.list-item-text {
+    font-size: 14px;
+}
+
+.list-item-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.list-item-actions button {
+    padding: 3px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.add-list-item {
+    display: flex;
+    gap: 10px;
+}
+
+.add-list-item input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.add-list-item button {
+    padding: 10px 15px;
+    font-size: 14px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .container {
+        width: 95%;
+    }
+    
+    .admin-controls {
+        flex-direction: column;
+    }
+    
+    .table {
+        font-size: 11px;
+    }
+    
+    .table th, 
+    .table td {
+        padding: 4px 2px;
+    }
+    
+    .timetable-header h1 {
+        font-size: 18px;
+    }
+    
+    .timetable-header h2 {
+        font-size: 14px;
+    }
+    
+    .timetable-header h3, .timetable-header h4 {
+        font-size: 12px;
+    }
+}
+
+/* PDF Button */
+.pdf-btn {
+    background-color: var(--accent-color);
+    color: var(--dark-bg);
+}
+
+.pdf-btn:hover {
+    background-color: #f57c00;
+}
+
+/* Nav Bar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--primary-color);
+    padding: 5px 10px;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar-brand {
+    font-size: 16px;
+    font-weight: bold;
+    text-decoration: none;
+    color: white;
+}
+
+.navbar-nav {
+    display: flex;
+    gap: 20px;
+}
+
+.nav-link {
+    color: white;
+    text-decoration: none;
+    padding: 3px 6px;
+}
+
+.nav-link:hover {
+    text-decoration: underline;
+}
+
+/* Add these to the existing CSS file */
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 8px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    font-weight: normal;
+    cursor: pointer;
+    margin-bottom: 0;
+}
+
+.checkbox-group input[type="checkbox"] {
+    margin-right: 5px;
+    width: auto;
+}
+
+.time-input-group {
+    display: flex;
+    gap: 20px;
+}
+
+.time-input-group > div {
+    flex: 1;
+}
+
+.time-input-group label {
+    margin-top: 0;
+}
+
+/* Configure Available Sessions Container */
+#sessionConfig {
+    background: white;
+    padding: 40px; /* Same padding as Add New Timetable Entry */
+    border-radius: 15px; /* Rounded corners for consistency */
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); /* Same shadow as Add New Timetable Entry */
+    margin: 0 auto; /* Center the container */
+    max-width: 800px; /* Same max width */
+    text-align: left; /* Align text to the left */
+}
+
+#sessionConfig h3 {
+    font-size: 24px; /* Same font size as Add New Timetable Entry heading */
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Hide the debug information section */
+#debugInfo {
+    display: none;
+}
+
+/* Hide scrollbar but keep functionality */
+.table-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #cccccc;
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+/* Lab classes styling */
+.lab-course {
+    background-color: rgba(255, 248, 225, 0.7) !important; /* Very light yellow */
+    font-style: italic;
+}
+
+/* Data modal styling */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 3% auto;
+    padding: 30px;
+    border: none;
+    width: 80%;
+    max-width: 1000px;
+    border-radius: 12px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.2);
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+}
+
+.data-btn {
+    background-color: #3949AB;
+}
+
+.data-btn:hover {
+    background-color: #303F9F;
+}
+
+.data-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.data-item {
+    background-color: #f1f1f1;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 14px;
+}
+
+.tabs {
+    display: flex;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 25px;
+    gap: 10px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    color: #7f8c8d;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    color: #34495e;
+}
+
+.tab-btn.active {
+    border-bottom: 3px solid var(--primary-color);
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.data-table-container {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th, 
+.data-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+.data-table th {
+    background-color: #f2f2f2;
+}
+
+/* Required field indicator */
+.required-field::after {
+    content: "*";
+    color: var(--danger-color);
+    margin-left: 3px;
+}
+
+/* Optional field indicator */
+.optional-field::after {
+    content: " (optional)";
+    color: #999;
+    font-size: 0.9em;
+    font-weight: normal;
+}
+
+/* Form validation error */
+.input-error {
+    border-color: var(--danger-color) !important;
+    background-color: rgba(231, 76, 60, 0.05) !important;
+}
+
+/* Add these session-based styles */
+.session-2021-cell {
+    background-color: #F2EFFF; /* Light purple */
+}
+
+.session-2022-cell {
+    background-color: #E8F7E8; /* Light green */
+}
+
+.session-2023-cell {
+    background-color: #E7F4FF; /* Light blue */
+}
+
+.session-2024-cell {
+    background-color: #FFFBEB; /* Light yellow */
+}
+
+.lab-class {
+    font-weight: bold;
+    font-style: italic;
+}
