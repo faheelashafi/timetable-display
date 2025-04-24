@@ -1,12 +1,9 @@
+import { getFirestore, collection, getDocs, addDoc, setDoc, doc, deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+const db = getFirestore(app);
+
 // Updated time utilities for more reliable comparison
 function normalizeTimeFormat(timeString) {
     if (!timeString) return '00:00';
-    
-    // If only hours are provided, add minutes
-    if (!timeString.includes(':')) {
-        return timeString + ':00';
-    }
-    
     return timeString;
 }
 
@@ -43,7 +40,7 @@ function isEntryInTimeSlot(entry, slotStart) {
     const slotStartMinutes = convertToMinutes(slotStart);
     
     // Debug output
-    console.log(`Comparing ${entry.courseCode}: ${entryStartTime}(${entryStartMinutes}) - ${entryEndTime}(${entryEndMinutes}) with slot ${slotStart}(${slotStartMinutes})`);
+  
     
     // Entry starts at or before this slot and ends after this slot starts
     return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
@@ -59,146 +56,104 @@ function checkLogin() {
     }
 }
 
-// Initialize timetable entries from localStorage
-let timetableEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+// Initialize timetable entries from Firestore
+let timetableEntries = [];
 
-// Save entries to localStorage with timestamp for cross-page sync
-function saveEntries() {
+// Save entries to Firestore
+async function saveEntries() {
     try {
-        localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
-        localStorage.setItem('timetable_lastUpdate', Date.now());
-        console.log(`Saved ${timetableEntries.length} entries to localStorage`);
+        await loadAndDisplayEntries();
     } catch (error) {
-        console.error('Error saving entries to localStorage:', error);
     }
+}
+
+// Helper to get a suggestion array from Firestore
+async function getSuggestionArray(key) {
+    const docRef = doc(db, "suggestions", key);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+        return docSnap.data().items || [];
+    }
+    return [];
+}
+
+// Helper to save a suggestion array to Firestore
+async function saveSuggestionArray(key, items) {
+    const docRef = doc(db, "suggestions", key);
+    await setDoc(docRef, { items });
 }
 
 // Data management system for suggestions and autocomplete
 const dataManager = {
-    // Storage keys
     keys: {
-        teacherNames: 'timetable_teacherNames',
-        venues: 'timetable_venues',
-        courseNames: 'timetable_courseNames',
-        courseCodes: 'timetable_courseCodes'
+        teacherNames: 'teacherNames',
+        venues: 'venues',
+        courseNames: 'courseNames',
+        courseCodes: 'courseCodes'
     },
-    
+
     // Get stored data or initialize empty array
-    getData: function(key) {
-        return JSON.parse(localStorage.getItem(key)) || [];
+    getData: async function(key) {
+        return await getSuggestionArray(key);
     },
-    
-    // Save data to localStorage
-    saveData: function(key, data) {
-        localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(key + '_lastUpdated', new Date().toISOString());
+
+    // Save data to Firestore
+    saveData: async function(key, data) {
+        await saveSuggestionArray(key, data);
     },
-    
+
     // Add new item to a specific data collection
-    addItem: function(key, item) {
+    addItem: async function(key, item) {
         if (!item) return;
-        
-        const data = this.getData(key);
-        if (!data.includes(item)) {
-            data.push(item);
-            data.sort();
-            this.saveData(key, data);
+        const items = await getSuggestionArray(key);
+        if (!items.includes(item)) {
+            items.push(item);
+            items.sort();
+            await saveSuggestionArray(key, items);
         }
     },
-    
+
     // Add multiple items at once
-    addItems: function(key, items) {
-        if (!items || !items.length) return;
-        
-        const data = this.getData(key);
+    addItems: async function(key, itemsToAdd) {
+        if (!itemsToAdd || !itemsToAdd.length) return;
+        const items = await getSuggestionArray(key);
         let changed = false;
-        
-        items.forEach(item => {
-            if (item && !data.includes(item)) {
-                data.push(item);
+        itemsToAdd.forEach(item => {
+            if (item && !items.includes(item)) {
+                items.push(item);
                 changed = true;
             }
         });
-        
         if (changed) {
-            data.sort();
-            this.saveData(key, data);
+            items.sort();
+            await saveSuggestionArray(key, items);
         }
     },
-    
+
     // Get suggestions based on input
-    getSuggestions: function(key, input) {
+    getSuggestions: async function(key, input) {
         if (!input) return [];
-        
-        const data = this.getData(key);
+        const items = await getSuggestionArray(key);
         const lowerInput = input.toLowerCase();
-        return data.filter(item => 
-            item.toLowerCase().includes(lowerInput)
-        );
+        return items.filter(item => item.toLowerCase().includes(lowerInput));
     },
-    
-    // Store entry data when a new entry is added
-    storeEntryData: function(entry) {
-        if (entry.teacherName) this.addItem(this.keys.teacherNames, entry.teacherName);
-        if (entry.venue) this.addItem(this.keys.venues, entry.venue);
-        if (entry.courseName) this.addItem(this.keys.courseNames, entry.courseName);
-        if (entry.courseCode) this.addItem(this.keys.courseCodes, entry.courseCode);
-    },
-    
-    // Import data from existing entries
-    importFromEntries: function() {
-        const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-        const teacherNames = entries.map(e => e.teacherName).filter(Boolean);
-        const venues = entries.map(e => e.venue).filter(Boolean);
-        const courseNames = entries.map(e => e.courseName).filter(Boolean);
-        const courseCodes = entries.map(e => e.courseCode).filter(Boolean);
-        
-        this.addItems(this.keys.teacherNames, teacherNames);
-        this.addItems(this.keys.venues, venues);
-        this.addItems(this.keys.courseNames, courseNames);
-        this.addItems(this.keys.courseCodes, courseCodes);
-        
-        console.log('Imported data from existing entries');
-    },
-    
-    // Get data as a structured object with metadata
-    getDataWithMetadata: function(key) {
-        const data = this.getData(key);
-        return {
-            key: key,
-            items: data,
-            count: data.length,
-            lastUpdated: localStorage.getItem(key + '_lastUpdated') || 'Never'
-        };
-    },
-    
+
     // Remove an item from a specific data collection
-    removeItem: function(key, item) {
+    removeItem: async function(key, item) {
         if (!item) return false;
-        
-        const data = this.getData(key);
-        const index = data.indexOf(item);
+        const items = await getSuggestionArray(key);
+        const index = items.indexOf(item);
         if (index !== -1) {
-            data.splice(index, 1);
-            this.saveData(key, data);
+            items.splice(index, 1);
+            await saveSuggestionArray(key, items);
             return true;
         }
         return false;
-    },
-    
-    // Get all stored data
-    getAllData: function() {
-        return {
-            teacherNames: this.getDataWithMetadata(this.keys.teacherNames),
-            venues: this.getDataWithMetadata(this.keys.venues),
-            courseNames: this.getDataWithMetadata(this.keys.courseNames),
-            courseCodes: this.getDataWithMetadata(this.keys.courseCodes)
-        };
     }
 };
 
 // Add or update the addEntry function
-function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab) {
+async function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab) {
     // Create a unique ID for the entry
     const entryId = Date.now();
     
@@ -218,27 +173,26 @@ function addEntry(day, session, courseCode, courseName, creditHours, teacherName
         isLab: isLab
     };
     
-    // Add to the global array
-    timetableEntries.push(entry);
-    
-    // Save to localStorage
-    localStorage.setItem('timetableEntries', JSON.stringify(timetableEntries));
+    // Add to Firestore
+    await addTimetableEntry(entry);
     
     return entry;
 }
 
 // Delete a specific entry by ID
-function deleteEntry(id) {
-    timetableEntries = timetableEntries.filter(entry => entry.id !== id);
-    saveEntries();
+async function deleteEntry(id) {
+    await deleteTimetableEntry(id);
+    await loadAndDisplayEntries();
 }
 
 // Delete all entries
-function deleteAllEntries() {
+async function deleteAllEntries() {
     if (confirm('Are you sure you want to delete all entries? This cannot be undone!')) {
-        timetableEntries = [];
-        saveEntries();
-        displayEntriesInAdmin();
+        const entries = await getAllTimetableEntries();
+        for (const entry of entries) {
+            await deleteTimetableEntry(entry.id);
+        }
+        await loadAndDisplayEntries();
     }
 }
 
@@ -282,22 +236,14 @@ function autoUpdateSessionOptions() {
 }
 
 // Display entries in the admin panel (updated version)
-function displayEntriesInAdmin() {
+async function displayEntriesInAdmin() {
     const entriesList = document.getElementById('entriesList');
     if (!entriesList) {
-        console.warn("Admin entries table not found (id='entriesList') - are you on the admin panel page?");
         return;
     }
 
-    // Always reload from localStorage to get the latest data
-    const entriesJson = localStorage.getItem('timetableEntries');
-    
-    try {
-        timetableEntries = JSON.parse(entriesJson) || [];
-    } catch (error) {
-        console.error("Error parsing timetable entries from localStorage:", error);
-        timetableEntries = [];
-    }
+    // Always reload from Firestore to get the latest data
+    timetableEntries = await getAllTimetableEntries();
 
     entriesList.innerHTML = ''; // Clear existing entries
     
@@ -347,12 +293,9 @@ function displayEntriesInAdmin() {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'btn danger small';
         deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', function() {
-            deleteEntry(entry.id);
-            displayEntriesInAdmin();
-            if (typeof updateStats === 'function') {
-                updateStats();
-            }
+        deleteBtn.addEventListener('click', async function() {
+            await deleteTimetableEntry(entry.id);
+            await loadAndDisplayEntries();
         });
         actionsCell.appendChild(deleteBtn);
         
@@ -369,8 +312,6 @@ function displayEntriesInAdmin() {
 // Fixed generatePDF function - replace the existing function with this one
 function generatePDF() {
     try {
-        console.log("Starting PDF generation...");
-        
         // Check if jsPDF is loaded
         if (typeof window.jspdf === 'undefined') {
             window.jspdf = window.jspdf || {};
@@ -395,7 +336,7 @@ function generatePDF() {
         doc.setFontSize(12);
         doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
         
-        const entries = window.timetableEntries || JSON.parse(localStorage.getItem('timetableEntries')) || [];
+        const entries = window.timetableEntries || [];
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
         const headers = ['Day', 'Session', ...timeSlots];
@@ -581,9 +522,7 @@ function generatePDF() {
         }
         
         doc.save('timetable.pdf');
-        console.log("PDF generated successfully!");
     } catch (error) {
-        console.error("Error generating PDF:", error);
         alert("Error generating PDF: " + error.message);
     }
 }
@@ -630,10 +569,8 @@ document.getElementById('loginForm').addEventListener('submit', async function(e
 // Modify the existing form submission handler for adding new entries
 const timetableForm = document.getElementById('timetableForm');
 if (timetableForm) {
-    console.log("✅ Found timetable form, attaching submit handler");
-    timetableForm.addEventListener('submit', function(e) {
+    timetableForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        console.log("Form submitted, processing...");
         
         // Get form values
         const courseCode = document.getElementById('courseCode')?.value.trim() || '';
@@ -646,19 +583,9 @@ if (timetableForm) {
         const endTime = document.getElementById('endTime')?.value || '';
         const isLab = document.getElementById('isLab')?.checked || false;
         
-        // Log form values for debugging
-        console.log("Form values:", {
-            courseCode, courseName, creditHours, venue, teacherName, session, startTime, endTime, isLab
-        });
-        
-        // Get selected days
-        const selectedDays = [];
-        document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
-            selectedDays.push(checkbox.value);
-        });
-        console.log("Selected days:", selectedDays);
-        
-        // Form validation
+       
+    
+            // Form validation
         let error = false;
         if (!courseCode) {
             document.getElementById('courseCode').classList.add('input-error');
@@ -712,8 +639,8 @@ if (timetableForm) {
         
         // Add entries for each selected day
         let entryCount = 0;
-        selectedDays.forEach(day => {
-            addEntry(
+        for (const day of selectedDays) {
+            const entry = {
                 day,
                 session,
                 courseCode,
@@ -721,16 +648,16 @@ if (timetableForm) {
                 creditHours,
                 teacherName,
                 venue,
-                `${startTime}-${endTime}`,  // timeSlot
                 startTime,
                 endTime,
                 isLab
-            );
+            };
+            await addTimetableEntry(entry);
             entryCount++;
-        });
+        }
 
-        // Save to localStorage with timestamp for cross-window updates
-        saveEntries();
+        // Save to Firestore
+        await loadAndDisplayEntries();
 
         // Force immediate display update
         displayEntriesInAdmin();
@@ -739,9 +666,6 @@ if (timetableForm) {
         // Reset form
         timetableForm.reset();
 
-        // Store update timestamp for cross-window sync
-        localStorage.setItem('timetable_lastUpdate', Date.now());
-
         // Show success message
         alert(`Successfully added ${entryCount} entries to the timetable.`);
     });
@@ -749,29 +673,16 @@ if (timetableForm) {
 
 // Clean up multiple event listeners by using a single initialization function
 function initializeApplication() {
-  console.log("Initializing application...");
   
-  // Step 1: Make sure entries exist in localStorage
-  const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-  console.log(`Found ${entries.length} entries in localStorage`);
   
-  // Step 2: Add a test entry if none exist
-  if (entries.length === 0) {
-    const newEntries = ensureTestEntryExists();
-    console.log(`Created test entry. Now have ${newEntries.length} entries.`);
-    
-    // Make sure global variable is updated
-    timetableEntries = newEntries;
-  } else {
-    // Make sure global variable matches localStorage
-    timetableEntries = entries;
-  }
+  // Step 1: Load entries from Firestore
+  loadAndDisplayEntries();
   
-  // Step 3: Initialize UI components
+  // Step 2: Initialize UI components
   checkLogin();
   autoUpdateSessionOptions();
   
-  // Step 4: Set up event handlers
+  // Step 3: Set up event handlers
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', function() {
@@ -796,20 +707,20 @@ function initializeApplication() {
     clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
   }
   
-  // Step 5: Initialize data management
+  // Step 4: Initialize data management
   dataManager.importFromEntries();
   populateDataLists();
   setupDataListHandlers();
   
-  // Step 6: Display entries
+  // Step 5: Display entries
   displayEntriesInAdmin();
   
-  console.log("Application initialization complete!");
+  
 }
 
 // Use a single DOMContentLoaded event listener
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("Document loaded, starting initialization");
+ 
   // Slight delay to ensure DOM is fully ready
   setTimeout(initializeApplication, 100);
 });
@@ -918,11 +829,11 @@ function populateDataLists() {
     populateListView('courseCodesListView', dataManager.keys.courseCodes);
 }
 
-// Populate a specific list view with data
-function populateListView(elementId, dataKey) {
+// Replace the old function with this async version:
+async function populateListView(elementId, dataKey) {
     const listContainer = document.getElementById(elementId);
     if (!listContainer) return;
-    const items = dataManager.getData(dataKey);
+    const items = await dataManager.getData(dataKey);
     listContainer.innerHTML = '';
     if (items.length === 0) {
         const emptyMessage = document.createElement('div');
@@ -942,9 +853,9 @@ function populateListView(elementId, dataKey) {
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'danger small';
         deleteBtn.textContent = 'Delete';
-        deleteBtn.addEventListener('click', () => {
-            deleteListItem(dataKey, item);
-            populateListView(elementId, dataKey);
+        deleteBtn.addEventListener('click', async () => {
+            await dataManager.removeItem(dataKey, item);
+            await populateListView(elementId, dataKey);
         });
         actions.appendChild(deleteBtn);
         listItem.appendChild(itemText);
@@ -986,7 +897,7 @@ function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
 }
 
 // Setup autocomplete for input fields
-function setupAutocomplete(inputElement, listId, dataKey) {
+async function setupAutocomplete(inputElement, listId, dataKey) {
     if (!inputElement) return;
     let datalist = document.getElementById(listId);
     if (!datalist) {
@@ -995,7 +906,7 @@ function setupAutocomplete(inputElement, listId, dataKey) {
         document.body.appendChild(datalist);
     }
     inputElement.setAttribute('list', listId);
-    const items = dataManager.getData(dataKey);
+    const items = await dataManager.getData(dataKey);
     datalist.innerHTML = '';
     items.forEach(item => {
         const option = document.createElement('option');
@@ -1356,3 +1267,49 @@ function renderEmptyTimetableGrid() {
         });
     });
 }
+
+
+
+async function loadAndDisplayEntries() {
+  timetableEntries = await getAllTimetableEntries();
+  displayEntriesInAdmin();
+}
+
+// 1. On page load, call loadAndDisplayEntries
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        loadAndDisplayEntries();
+    }, 100);
+});
+
+// 2. When adding an entry (e.g., in your form submit handler)
+const timetableForm = document.getElementById('timetableForm');
+if (timetableForm) {
+    timetableForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        // ...collect form values...
+        for (const day of selectedDays) {
+            const entry = {
+                // ...your entry fields...
+                day, session, courseCode, courseName, creditHours, teacherName, venue, startTime, endTime, isLab
+            };
+            await addTimetableEntry(entry);
+        }
+        await loadAndDisplayEntries();
+        // ...reset form, show success, etc...
+    });
+}
+
+// 3. When deleting an entry (e.g., in your delete button handler)
+async function handleDeleteEntry(id) {
+    await deleteTimetableEntry(id);
+    await loadAndDisplayEntries();
+}
+
+// Example usage in your displayEntriesInAdmin function:
+const deleteBtn = document.createElement('button');
+deleteBtn.className = 'btn danger small';
+deleteBtn.textContent = 'Delete';
+deleteBtn.addEventListener('click', async function() {
+    await handleDeleteEntry(entry.id);
+});

@@ -8,6 +8,7 @@
     <script src="../scripts/timetable.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
     <style>
         /* Update these styles to use more vertical space */
         body.timetable-view {
@@ -66,7 +67,7 @@
         /* Further reduce day column width */
         .table th:first-child,
         .table .day-cell {
-            width: 5vw; /* Even smaller width */
+            width: 5.5vw; /* Even smaller width */
         }
         
         /* Further reduce session column width */
@@ -194,45 +195,18 @@
         </table>
     </div>
 
-    <script>
-        // Initial render (already present)
-        document.addEventListener('DOMContentLoaded', function() {
-            let entries = [];
-            try {
-                const entriesJson = localStorage.getItem('timetableEntries');
-                entries = JSON.parse(entriesJson) || [];
-                window.timetableEntries = entries;
-            } catch(error) {
-                console.error('Error loading timetable entries:', error);
-            }
+    <script type="module">
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        const db = getFirestore();
+
+        async function loadAndRenderTimetable() {
+            const querySnapshot = await getDocs(collection(db, "timetableEntries"));
+            const entries = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            window.timetableEntries = entries;
             renderTimetable(entries);
-        });
+        }
 
-        // Listen for changes in localStorage from other tabs/windows
-        window.addEventListener('storage', function(event) {
-            if (event.key === 'timetableEntries') {
-                try {
-                    const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-                    window.timetableEntries = entries;
-                    renderTimetable(entries);
-                } catch (error) {
-                    console.error('Error updating timetable on storage event:', error);
-                }
-            }
-        });
-
-        // Optional: Also poll for changes every few seconds (for single-tab updates)
-        setInterval(function() {
-            try {
-                const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-                if (JSON.stringify(entries) !== JSON.stringify(window.timetableEntries)) {
-                    window.timetableEntries = entries;
-                    renderTimetable(entries);
-                }
-            } catch (error) {
-                // Ignore errors
-            }
-        }, 3000);
+        document.addEventListener('DOMContentLoaded', loadAndRenderTimetable);
     </script>
 </body>
 </html>
