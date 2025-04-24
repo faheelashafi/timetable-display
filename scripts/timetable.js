@@ -323,7 +323,7 @@ function displayEntriesInAdmin() {
         const sessionCompare = a.session.localeCompare(b.session);
         if (sessionCompare !== 0) return sessionCompare;
         
-        return convertToMinutes(a.startTime) - convertToMinutes(b.startTime);
+        return convertToMinutes(a.startTime) - convertToMinutes(a.startTime);
     });
     
     // Create table rows for each entry
@@ -1004,11 +1004,11 @@ function setupAutocomplete(inputElement, listId, dataKey) {
     });
 }
 
-// Define hardcoded time slots from 8:00am to 7:00pm with half hour intervals in 12-hour format
+// Define hardcoded time slots from 8:00am to 1:00pm with half hour intervals in 12-hour format
 function getHardcodedTimeSlots() {
     const slots = [];
-    // Start at 08:00, end at 19:00 (7pm)
-    for (let hour = 8; hour < 19; hour++) {
+    // Start at 08:00, end at 13:00 (1pm)
+    for (let hour = 8; hour < 13; hour++) {
         // Format hour with leading zero for consistency in storage
         const formattedHour = hour.toString().padStart(2, '0');
         
@@ -1016,8 +1016,8 @@ function getHardcodedTimeSlots() {
         slots.push(`${formattedHour}:00-${formattedHour}:30`);
         
         // Second half hour slot (XX:30-YY:00) - special handling for hour transition
-        if (hour === 18) { // 18:30-19:00 is the last slot
-            slots.push(`${formattedHour}:30-19:00`);
+        if (hour === 12) { // 12:30-13:00 is the last slot
+            slots.push(`${formattedHour}:30-13:00`);
         } else {
             const nextHour = (hour + 1).toString().padStart(2, '0');
             slots.push(`${formattedHour}:30-${nextHour}:00`);
@@ -1026,7 +1026,7 @@ function getHardcodedTimeSlots() {
     return slots;
 }
 
-// Update renderTimetable function to display time slots with 12-hour format
+// Update renderTimetable function to display time slots without AM/PM format
 function renderTimetable(entries) {
     const tableBody = document.getElementById('timetableBody');
     const table = document.getElementById('timetableDisplay');
@@ -1053,18 +1053,18 @@ function renderTimetable(entries) {
     // Use hardcoded time slots
     const timeSlots = getHardcodedTimeSlots();
     
-    // Add time slots to header with 12-hour format display
+    // Add time slots to header without AM/PM format
     if (thead && timeSlots.length > 0) {
         const headerRow = thead.querySelector('tr');
         timeSlots.forEach(slot => {
             const th = document.createElement('th');
             
-            // Convert the slot to 12-hour format for display
+            // Convert the slot to 12-hour format display
             const [start, end] = slot.split('-');
             const startHour = parseInt(start.split(':')[0]);
             const endHour = parseInt(end.split(':')[0]);
             
-            // Format for 12-hour display (1pm instead of 13:00)
+            // Format for 12-hour display without AM/PM
             let displayStart = startHour > 12 ? (startHour - 12) : startHour;
             let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
             
@@ -1072,11 +1072,8 @@ function renderTimetable(entries) {
             const startMinutes = start.split(':')[1];
             const endMinutes = end.split(':')[1];
             
-            // Add am/pm
-            const startMeridiem = startHour >= 12 ? 'pm' : 'am';
-            const endMeridiem = endHour >= 12 ? 'pm' : 'am';
-            
-            th.textContent = `${displayStart}:${startMinutes}${startMeridiem}-${displayEnd}:${endMinutes}${endMeridiem}`;
+            // No AM/PM as requested
+            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
             headerRow.appendChild(th);
         });
     }
@@ -1115,34 +1112,73 @@ function renderTimetable(entries) {
             sessionCell.textContent = session;
             row.appendChild(sessionCell);
             
-            // Add cells for each time slot
+            // Filter entries for this session
             const sessionEntries = dayEntries.filter(entry => entry.session === session);
             
-            timeSlots.forEach(timeSlot => {
+            // Process each time slot to handle spanning cells
+            let skipCells = 0;
+            
+            for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+                if (skipCells > 0) {
+                    skipCells--;
+                    continue; // Skip this cell as it's covered by a previous colspan
+                }
+                
+                const timeSlot = timeSlots[slotIndex];
                 const [slotStart, slotEnd] = timeSlot.split('-');
-                // Find any entry that fits in this time slot
+                
+                // Find an entry that starts at this slot
                 const entry = sessionEntries.find(e => {
+                    // Check if this entry starts at or before this slot and ends after this slot
                     const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
-                    const entryEndMins = convertToMinutes(normalizeTimeFormat(e.endTime));
                     const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
-                    const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
-                    
-                    // Check if entry overlaps with this slot
-                    return (entryStartMins <= slotStartMins && entryEndMins > slotStartMins) || 
-                           (entryStartMins >= slotStartMins && entryStartMins < slotEndMins);
+                    return entryStartMins === slotStartMins;
                 });
                 
                 if (entry) {
+                    // Calculate how many slots this entry spans
+                    const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                    const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                    
+                    // Calculate how many half-hour slots this covers
+                    const slotSpan = Math.max(1, Math.ceil((entryEndMins - entryStartMins) / 30));
+                    
+                    // Create the cell
                     const cell = document.createElement('td');
                     cell.className = 'course-cell';
+                    
+                    // Set colspan if needed
+                    if (slotSpan > 1 && slotIndex + slotSpan <= timeSlots.length) {
+                        cell.colSpan = slotSpan;
+                        skipCells = slotSpan - 1; // Skip the next cells
+                    }
+                    
                     cell.innerHTML = `<div style="font-weight:bold;">${entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode}</div>`;
                     cell.title = `${entry.courseName}\nTime: ${entry.startTime}-${entry.endTime}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
                     row.appendChild(cell);
                 } else {
+                    // Check if there's an entry that spans this slot
+                    const spanningEntry = sessionEntries.find(e => {
+                        const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
+                        const entryEndMins = convertToMinutes(normalizeTimeFormat(e.endTime));
+                        const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
+                        const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
+                        
+                        // Entry starts before this slot and ends after slot starts
+                        return entryStartMins < slotStartMins && entryEndMins > slotStartMins;
+                    });
+                    
+                    if (spanningEntry) {
+                        // This slot is covered by a spanning entry that started earlier
+                        // We already handled it with colspan, so skip
+                        continue;
+                    }
+                    
+                    // Empty cell - no entry for this time slot
                     const cell = document.createElement('td');
                     row.appendChild(cell);
                 }
-            });
+            }
             
             tableBody.appendChild(row);
         });
@@ -1253,7 +1289,7 @@ function renderEmptyTimetableGrid() {
     // Get hardcoded time slots
     const timeSlots = getHardcodedTimeSlots();
     
-    // Add time slots to header with 12-hour format display
+    // Add time slots to header without AM/PM format
     const thead = table.querySelector('thead');
     if (thead) {
         const headerRow = thead.querySelector('tr');
@@ -1266,12 +1302,12 @@ function renderEmptyTimetableGrid() {
         timeSlots.forEach(slot => {
             const th = document.createElement('th');
             
-            // Convert the slot to 12-hour format for display
+            // Convert the slot to 12-hour format display
             const [start, end] = slot.split('-');
             const startHour = parseInt(start.split(':')[0]);
             const endHour = parseInt(end.split(':')[0]);
             
-            // Format for 12-hour display (1pm instead of 13:00)
+            // Format for 12-hour display without AM/PM
             let displayStart = startHour > 12 ? (startHour - 12) : startHour;
             let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
             
@@ -1279,11 +1315,8 @@ function renderEmptyTimetableGrid() {
             const startMinutes = start.split(':')[1];
             const endMinutes = end.split(':')[1];
             
-            // Add am/pm
-            const startMeridiem = startHour >= 12 ? 'pm' : 'am';
-            const endMeridiem = endHour >= 12 ? 'pm' : 'am';
-            
-            th.textContent = `${displayStart}:${startMinutes}${startMeridiem}-${displayEnd}:${endMinutes}${endMeridiem}`;
+            // No AM/PM as requested
+            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
             headerRow.appendChild(th);
         });
     }

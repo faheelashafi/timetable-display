@@ -201,7 +201,7 @@ button.small {
     border-radius: 6px;
     box-shadow: none;
     overflow-x: auto;
-    height: 85vh;
+    height: auto;
 }
 
 /* Specific styles for the timetable display view */

@@ -9,70 +9,82 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
-        /* Additional styles for DisplayTimetable.html only */
+        /* Update these styles to use more vertical space */
         body.timetable-view {
             height: 100vh;
-            overflow: hidden; /* Prevent scrolling only on timetable display */
+            overflow: hidden;
             margin: 0;
             padding: 0;
         }
         
         .timetable-header {
             text-align: center;
-            margin-bottom: 0.5vh;
-            padding: 0.5vh; /* Reduced padding */
+            margin-bottom: 0.1vh; /* Reduced further */
+            padding: 0.2vh; /* Reduced further */
         }
         
         .timetable-header h1 {
-            font-size: 2.5vh;
+            font-size: 2.2vh; /* Slightly smaller */
             margin: 0;
         }
         
         .timetable-header h3 {
-            font-size: 1.8vh;
-            margin: 0.3vh 0; /* Reduced margin */
+            font-size: 1.6vh; /* Slightly smaller */
+            margin: 0.2vh 0; /* Reduced */
         }
         
-        /* INCREASED HEIGHT AND WIDTH to use more space */
+        /* Increase table container height to use more vertical space */
         .table-container {
-            height: 92vh; /* Increased from 88vh to 92vh since we removed the button */
-            width: 98%; /* Increased from 95% to 98% to utilize more width */
+            height: 96vh; /* Increased from 92vh to use more space */
+            width: 98%;
             margin: 0 auto;
             padding: 0;
             box-shadow: none;
+            border-spacing: 0; /* Remove any extra spacing */
         }
         
+        /* Remove spacing between cells */
         .table {
             width: 100%;
             height: 100%;
             font-size: 1.8vh;
             table-layout: fixed;
+            border-collapse: collapse; /* This removes spacing between cells */
+            border-spacing: 0; /* Ensure no space between borders */
         }
         
         .table th, .table td {
-            padding: 0.6vh 0.4vw;
+            padding: 0.2vh 0.2vw; /* Reduced padding even further */
             min-width: auto;
             vertical-align: middle;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            border: 1px solid #ccc; /* Consistent border */
         }
         
-        /* Day column - made more compact */
+        /* Further reduce day column width */
         .table th:first-child,
         .table .day-cell {
-            width: 5.5vw; /* Reduced from 5vw */
+            width: 4.5vw; /* Even smaller width */
         }
         
-        /* Session column - made more compact */
+        /* Further reduce session column width */
         .table th:nth-child(2),
         .table .session-cell {
-            width: 5vw; /* Reduced from 3vw */
+            width: 4vw; /* Even smaller width */
+        }
+
+        /* Make time slot headers more compact */
+        .table th:not(:first-child):not(:nth-child(2)) {
+            font-size: 1.5vh;
+            padding: 0.3vh 0.15vw;
         }
         
-        /* Course cells */
+        /* Optimize course cells */
         .table .course-cell {
-            padding: 0.4vh 0.2vw;
+            padding: 0.2vh 0.1vw;
+            background-color: #f3eaff; /* Light purple background */
         }
         
         /* Make sure content is still readable */
@@ -86,6 +98,12 @@
         /* Add tooltip for hover to see full content */
         .table td[title] {
             cursor: help;
+        }
+        
+        /* Ensure cells fit together tightly */
+        .table tr {
+            padding: 0;
+            margin: 0;
         }
         
         /* Media query for very wide screens */
@@ -138,8 +156,8 @@
     </div>
 
     <script>
+        // Initial render (already present)
         document.addEventListener('DOMContentLoaded', function() {
-            // Load timetable entries
             let entries = [];
             try {
                 const entriesJson = localStorage.getItem('timetableEntries');
@@ -148,10 +166,34 @@
             } catch(error) {
                 console.error('Error loading timetable entries:', error);
             }
-            
-            // Render the timetable
             renderTimetable(entries);
         });
+
+        // Listen for changes in localStorage from other tabs/windows
+        window.addEventListener('storage', function(event) {
+            if (event.key === 'timetableEntries') {
+                try {
+                    const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+                    window.timetableEntries = entries;
+                    renderTimetable(entries);
+                } catch (error) {
+                    console.error('Error updating timetable on storage event:', error);
+                }
+            }
+        });
+
+        // Optional: Also poll for changes every few seconds (for single-tab updates)
+        setInterval(function() {
+            try {
+                const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+                if (JSON.stringify(entries) !== JSON.stringify(window.timetableEntries)) {
+                    window.timetableEntries = entries;
+                    renderTimetable(entries);
+                }
+            } catch (error) {
+                // Ignore errors
+            }
+        }, 3000);
     </script>
 </body>
 </html>
