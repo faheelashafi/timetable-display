@@ -45,7 +45,34 @@
                 console.log('First entry:', entries[0]);
             }
             renderTimetable(entries);
+            
+            // Set up dynamic updates for the display
+            setupDisplayDynamicUpdates();
         });
+
+        function setupDisplayDynamicUpdates() {
+            console.log("Setting up dynamic updates for timetable display");
+            
+            // Store current entries state for comparison
+            let currentEntriesJSON = localStorage.getItem('timetableEntries') || '[]';
+            
+            // Check for updates every 3 seconds
+            setInterval(function() {
+                const storedEntriesJSON = localStorage.getItem('timetableEntries');
+                
+                // Only update if the data has changed
+                if (currentEntriesJSON !== storedEntriesJSON) {
+                    console.log("Changes detected in timetable entries, updating display");
+                    
+                    // Update the stored state
+                    currentEntriesJSON = storedEntriesJSON;
+                    
+                    // Parse and render the updated entries
+                    const entries = JSON.parse(storedEntriesJSON) || [];
+                    renderTimetable(entries);
+                }
+            }, 3000); // 3 seconds interval
+        }
     </script>
 </body>
 </html>

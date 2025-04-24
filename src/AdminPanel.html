@@ -921,6 +921,9 @@
                     updateStats();
                 }
             });
+
+            // Set up dynamic updates
+            setupDynamicUpdates();
         });
 
         // Display entries in admin panel
@@ -1004,6 +1007,36 @@
             
             const uniqueTeachers = [...new Set(window.timetableEntries.filter(entry => entry.teacherName).map(entry => entry.teacherName))].length;
             document.getElementById('totalTeachers').textContent = uniqueTeachers;
+        }
+
+        // Function to check for updates periodically
+        function setupDynamicUpdates() {
+            console.log("Setting up dynamic updates through polling");
+            
+            // Check for updates every 3 seconds
+            setInterval(function() {
+                const storedEntriesJSON = localStorage.getItem('timetableEntries');
+                // Compare and update if needed
+                try {
+                    // Parse the stored entries
+                    const storedEntries = JSON.parse(storedEntriesJSON) || [];
+                    
+                    // Compare with current entries
+                    const currentJSON = JSON.stringify(window.timetableEntries);
+                    
+                    if (currentJSON !== storedEntriesJSON) {
+                        // Update when data has changed
+                        console.log("Changes detected in timetable entries, updating UI");
+                        
+                        // Update the entries
+                        window.timetableEntries = storedEntries;
+                        displayEntriesInAdmin();
+                        updateStats();
+                    }
+                } catch (error) {
+                    console.error("Error checking for updates:", error);
+                }
+            }, 3000); // 3 seconds interval
         }
     </script>
 </body>
