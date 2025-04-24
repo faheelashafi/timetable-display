@@ -1007,16 +1007,10 @@ function setupAutocomplete(inputElement, listId, dataKey) {
 // Define hardcoded time slots from 8:00am to 1:00pm with half hour intervals in 12-hour format
 function getHardcodedTimeSlots() {
     const slots = [];
-    // Start at 08:00, end at 13:00 (1pm)
     for (let hour = 8; hour < 13; hour++) {
-        // Format hour with leading zero for consistency in storage
         const formattedHour = hour.toString().padStart(2, '0');
-        
-        // First half hour slot (XX:00-XX:30)
         slots.push(`${formattedHour}:00-${formattedHour}:30`);
-        
-        // Second half hour slot (XX:30-YY:00) - special handling for hour transition
-        if (hour === 12) { // 12:30-13:00 is the last slot
+        if (hour === 12) {
             slots.push(`${formattedHour}:30-13:00`);
         } else {
             const nextHour = (hour + 1).toString().padStart(2, '0');
