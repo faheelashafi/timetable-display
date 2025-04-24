@@ -8,47 +8,149 @@
     <script src="../scripts/timetable.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        /* Additional styles for DisplayTimetable.html only */
+        body.timetable-view {
+            height: 100vh;
+            overflow: hidden; /* Prevent scrolling only on timetable display */
+            margin: 0;
+            padding: 0;
+        }
+        
+        .timetable-header {
+            text-align: center;
+            margin-bottom: 0.5vh;
+            padding: 0.5vh; /* Reduced padding */
+        }
+        
+        .timetable-header h1 {
+            font-size: 2.5vh;
+            margin: 0;
+        }
+        
+        .timetable-header h3 {
+            font-size: 1.8vh;
+            margin: 0.3vh 0; /* Reduced margin */
+        }
+        
+        /* INCREASED HEIGHT AND WIDTH to use more space */
+        .table-container {
+            height: 92vh; /* Increased from 88vh to 92vh since we removed the button */
+            width: 98%; /* Increased from 95% to 98% to utilize more width */
+            margin: 0 auto;
+            padding: 0;
+            box-shadow: none;
+        }
+        
+        .table {
+            width: 100%;
+            height: 100%;
+            font-size: 1.8vh;
+            table-layout: fixed;
+        }
+        
+        .table th, .table td {
+            padding: 0.6vh 0.4vw;
+            min-width: auto;
+            vertical-align: middle;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Day column - made more compact */
+        .table th:first-child,
+        .table .day-cell {
+            width: 5.5vw; /* Reduced from 5vw */
+        }
+        
+        /* Session column - made more compact */
+        .table th:nth-child(2),
+        .table .session-cell {
+            width: 5vw; /* Reduced from 3vw */
+        }
+        
+        /* Course cells */
+        .table .course-cell {
+            padding: 0.4vh 0.2vw;
+        }
+        
+        /* Make sure content is still readable */
+        .table .course-cell div {
+            font-size: 1.8vh;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Add tooltip for hover to see full content */
+        .table td[title] {
+            cursor: help;
+        }
+        
+        /* Media query for very wide screens */
+        @media (min-aspect-ratio: 16/9) {
+            .table-container {
+                width: 98%; /* Increased to use more space */
+                max-width: 1600px; /* Increased from 1400px */
+            }
+        }
+        
+        /* Media query for smaller screens */
+        @media (max-height: 600px) {
+            .table {
+                font-size: 1.6vh;
+            }
+            
+            .table th, .table td {
+                padding: 0.4vh 0.3vw;
+            }
+            
+            .timetable-header h1 {
+                font-size: 2.2vh;
+            }
+            
+            .timetable-header h3 {
+                font-size: 1.6vh;
+            }
+        }
+    </style>
 </head>
-<body>
+<body class="timetable-view">
     <div class="timetable-header">
         <h1>Time Table</h1>
         <h3>DEPT. OF CS & IT - University of Chakwal</h3>
     </div>
 
     <div class="table-container">
-        <table class="table" id="timetableDisplay">
+        <table id="timetableDisplay" class="table">
             <thead>
                 <tr>
                     <th>Day</th>
                     <th>Session</th>
-                    <!-- Slot headers will be added dynamically by JS -->
+                    <!-- Time slots will be added dynamically -->
                 </tr>
             </thead>
             <tbody id="timetableBody">
-                <!-- Timetable entries will be displayed here -->
+                <!-- Table content will be generated dynamically -->
             </tbody>
         </table>
     </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Try to load entries from localStorage
-            const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-            
-            // If we have entries, display them
-            if (entries && entries.length > 0) {
-                renderTimetable(entries);
-            } else {
-                // Otherwise show the empty hardcoded grid
-                renderHardcodedGrid(false, false);
+            // Load timetable entries
+            let entries = [];
+            try {
+                const entriesJson = localStorage.getItem('timetableEntries');
+                entries = JSON.parse(entriesJson) || [];
+                window.timetableEntries = entries;
+            } catch(error) {
+                console.error('Error loading timetable entries:', error);
             }
             
-            // Set up refresh to check for new entries periodically
-            setInterval(function() {
-                const updatedEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-                if (updatedEntries && updatedEntries.length > 0) {
-                    renderTimetable(updatedEntries);
-                }
-            }, 3000);
+            // Render the timetable
+            renderTimetable(entries);
         });
     </script>
 </body>

@@ -291,7 +291,6 @@ function displayEntriesInAdmin() {
 
     // Always reload from localStorage to get the latest data
     const entriesJson = localStorage.getItem('timetableEntries');
-    console.log("Raw entries from localStorage:", entriesJson);
     
     try {
         timetableEntries = JSON.parse(entriesJson) || [];
@@ -300,11 +299,71 @@ function displayEntriesInAdmin() {
         timetableEntries = [];
     }
 
-    console.log(`Displaying ${timetableEntries.length} entries in admin panel`);
     entriesList.innerHTML = ''; // Clear existing entries
     
-    // Implement the rest of the function to display entries
-    // ...
+    // Add empty state message if no entries
+    if (timetableEntries.length === 0) {
+        const emptyRow = document.createElement('tr');
+        const emptyCell = document.createElement('td');
+        emptyCell.colSpan = 5;
+        emptyCell.style.textAlign = 'center';
+        emptyCell.style.padding = '30px';
+        emptyCell.textContent = 'No timetable entries yet. Add some using the form above.';
+        emptyRow.appendChild(emptyCell);
+        entriesList.appendChild(emptyRow);
+        return;
+    }
+
+    // Sort entries by day, session, and time
+    timetableEntries.sort((a, b) => {
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const dayCompare = days.indexOf(a.day) - days.indexOf(b.day);
+        if (dayCompare !== 0) return dayCompare;
+        
+        const sessionCompare = a.session.localeCompare(b.session);
+        if (sessionCompare !== 0) return sessionCompare;
+        
+        return convertToMinutes(a.startTime) - convertToMinutes(b.startTime);
+    });
+    
+    // Create table rows for each entry
+    timetableEntries.forEach(entry => {
+        const row = document.createElement('tr');
+        
+        const dayCell = document.createElement('td');
+        dayCell.textContent = entry.day;
+        
+        const sessionCell = document.createElement('td');
+        sessionCell.textContent = entry.session;
+        
+        const courseCell = document.createElement('td');
+        courseCell.textContent = entry.isLab ? `${entry.courseCode} (Lab)` : entry.courseCode;
+        courseCell.title = entry.courseName;
+        
+        const timeCell = document.createElement('td');
+        timeCell.textContent = `${entry.startTime}-${entry.endTime}`;
+        
+        const actionsCell = document.createElement('td');
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn danger small';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', function() {
+            deleteEntry(entry.id);
+            displayEntriesInAdmin();
+            if (typeof updateStats === 'function') {
+                updateStats();
+            }
+        });
+        actionsCell.appendChild(deleteBtn);
+        
+        row.appendChild(dayCell);
+        row.appendChild(sessionCell);
+        row.appendChild(courseCell);
+        row.appendChild(timeCell);
+        row.appendChild(actionsCell);
+        
+        entriesList.appendChild(row);
+    });
 }
 
 // Fixed generatePDF function - replace the existing function with this one
@@ -945,6 +1004,29 @@ function setupAutocomplete(inputElement, listId, dataKey) {
     });
 }
 
+// Define hardcoded time slots from 8:00am to 7:00pm with half hour intervals in 12-hour format
+function getHardcodedTimeSlots() {
+    const slots = [];
+    // Start at 08:00, end at 19:00 (7pm)
+    for (let hour = 8; hour < 19; hour++) {
+        // Format hour with leading zero for consistency in storage
+        const formattedHour = hour.toString().padStart(2, '0');
+        
+        // First half hour slot (XX:00-XX:30)
+        slots.push(`${formattedHour}:00-${formattedHour}:30`);
+        
+        // Second half hour slot (XX:30-YY:00) - special handling for hour transition
+        if (hour === 18) { // 18:30-19:00 is the last slot
+            slots.push(`${formattedHour}:30-19:00`);
+        } else {
+            const nextHour = (hour + 1).toString().padStart(2, '0');
+            slots.push(`${formattedHour}:30-${nextHour}:00`);
+        }
+    }
+    return slots;
+}
+
+// Update renderTimetable function to display time slots with 12-hour format
 function renderTimetable(entries) {
     const tableBody = document.getElementById('timetableBody');
     const table = document.getElementById('timetableDisplay');
@@ -968,26 +1050,33 @@ function renderTimetable(entries) {
         return;
     }
     
-    // Generate time slots from entries
-    const timeSlots = [];
-    entries.forEach(entry => {
-        if (entry.startTime && entry.endTime) {
-            const timeSlot = `${entry.startTime}-${entry.endTime}`;
-            if (!timeSlots.includes(timeSlot)) {
-                timeSlots.push(timeSlot);
-            }
-        }
-    });
+    // Use hardcoded time slots
+    const timeSlots = getHardcodedTimeSlots();
     
-    // Sort time slots
-    timeSlots.sort();
-    
-    // Add time slots to header
+    // Add time slots to header with 12-hour format display
     if (thead && timeSlots.length > 0) {
         const headerRow = thead.querySelector('tr');
         timeSlots.forEach(slot => {
             const th = document.createElement('th');
-            th.textContent = slot;
+            
+            // Convert the slot to 12-hour format for display
+            const [start, end] = slot.split('-');
+            const startHour = parseInt(start.split(':')[0]);
+            const endHour = parseInt(end.split(':')[0]);
+            
+            // Format for 12-hour display (1pm instead of 13:00)
+            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
+            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
+            
+            // Add minutes part
+            const startMinutes = start.split(':')[1];
+            const endMinutes = end.split(':')[1];
+            
+            // Add am/pm
+            const startMeridiem = startHour >= 12 ? 'pm' : 'am';
+            const endMeridiem = endHour >= 12 ? 'pm' : 'am';
+            
+            th.textContent = `${displayStart}:${startMinutes}${startMeridiem}-${displayEnd}:${endMinutes}${endMeridiem}`;
             headerRow.appendChild(th);
         });
     }
@@ -1009,11 +1098,11 @@ function renderTimetable(entries) {
                 const dayCell = document.createElement('td');
                 dayCell.className = 'day-cell';
                 dayCell.textContent = day;
-                dayCell.rowSpan = allSessions.length; // Span all sessions
+                dayCell.rowSpan = allSessions.length;
                 
                 // ADD EXPLICIT STYLE OVERRIDES
-                dayCell.style.display = "table-cell"; // Force visibility
-                dayCell.style.color = "#fff"; // Ensure text is visible
+                dayCell.style.display = "table-cell";
+                dayCell.style.color = "#fff";
                 dayCell.style.fontWeight = "bold";
                 dayCell.style.background = "#388e3c";
                 
@@ -1030,7 +1119,18 @@ function renderTimetable(entries) {
             const sessionEntries = dayEntries.filter(entry => entry.session === session);
             
             timeSlots.forEach(timeSlot => {
-                const entry = sessionEntries.find(e => `${e.startTime}-${e.endTime}` === timeSlot);
+                const [slotStart, slotEnd] = timeSlot.split('-');
+                // Find any entry that fits in this time slot
+                const entry = sessionEntries.find(e => {
+                    const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
+                    const entryEndMins = convertToMinutes(normalizeTimeFormat(e.endTime));
+                    const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
+                    const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
+                    
+                    // Check if entry overlaps with this slot
+                    return (entryStartMins <= slotStartMins && entryEndMins > slotStartMins) || 
+                           (entryStartMins >= slotStartMins && entryStartMins < slotEndMins);
+                });
                 
                 if (entry) {
                     const cell = document.createElement('td');
@@ -1049,48 +1149,20 @@ function renderTimetable(entries) {
     });
 }
 
-// Function to load entries from localStorage and render them
-function loadAndRenderTimetable() {
-    const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-    window.renderTimetable(entries);
+// Helper function to determine if an entry fits within a time slot
+function doesEntryFitTimeSlot(entry, slotStart, slotEnd) {
+    const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
+    const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
+    const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
+    const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
+    
+    // Entry starts at or before slot start and ends at or after slot end
+    return entryStartMins <= slotStartMins && entryEndMins >= slotEndMins;
 }
 
-
-// Function to get all time slots dynamically
+// Also update the getAllTimeSlots function to use hardcoded slots for PDF generation
 function getAllTimeSlots(entries) {
-    // Make sure we have entries with time info
-    const validEntries = entries.filter(e => e.startTime && e.endTime);
-    if (validEntries.length === 0) {
-        console.warn("No entries with valid time information found");
-        return ["No time slots"];
-    }
-    
-    // Collect all unique time slots
-    const slotSet = new Set();
-    validEntries.forEach(entry => {
-        const slot = `${normalizeTimeFormat(entry.startTime)}-${normalizeTimeFormat(entry.endTime)}`;
-        slotSet.add(slot);
-    });
-    
-    // Convert to array and sort
-    const slots = Array.from(slotSet);
-    slots.sort((a, b) => {
-        const aStart = convertToMinutes(a.split('-')[0]);
-        const bStart = convertToMinutes(b.split('-')[0]);
-        return aStart - bStart;
-    });
-    
-    return slots;
-}
-
-// Helper to add minutes to a time string
-function addMinutes(time, minsToAdd) {
-    const [h, m] = time.split(':').map(Number);
-    let total = h * 60 + m + minsToAdd;
-    let hours = Math.floor(total / 60);
-    let mins = total % 60;
-    // Pad with zero if needed
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    return getHardcodedTimeSlots();
 }
 
 function renderHardcodedGrid(showSaturday = false, showSunday = false) {
@@ -1173,12 +1245,51 @@ function renderHardcodedGrid(showSaturday = false, showSunday = false) {
 
 function renderEmptyTimetableGrid() {
     const tableBody = document.getElementById('timetableBody');
-    if (!tableBody) return;
+   const table = document.getElementById('timetableDisplay');
+    if (!tableBody || !table) return;
+    
     tableBody.innerHTML = '';
+
+    // Get hardcoded time slots
+    const timeSlots = getHardcodedTimeSlots();
+    
+    // Add time slots to header with 12-hour format display
+    const thead = table.querySelector('thead');
+    if (thead) {
+        const headerRow = thead.querySelector('tr');
+        // Keep only Day and Session columns
+        while (headerRow.children.length > 2) {
+            headerRow.removeChild(headerRow.lastChild);
+        }
+        
+        // Add the time slots to header
+        timeSlots.forEach(slot => {
+            const th = document.createElement('th');
+            
+            // Convert the slot to 12-hour format for display
+            const [start, end] = slot.split('-');
+            const startHour = parseInt(start.split(':')[0]);
+            const endHour = parseInt(end.split(':')[0]);
+            
+            // Format for 12-hour display (1pm instead of 13:00)
+            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
+            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
+            
+            // Add minutes part
+            const startMinutes = start.split(':')[1];
+            const endMinutes = end.split(':')[1];
+            
+            // Add am/pm
+            const startMeridiem = startHour >= 12 ? 'pm' : 'am';
+            const endMeridiem = endHour >= 12 ? 'pm' : 'am';
+            
+            th.textContent = `${displayStart}:${startMinutes}${startMeridiem}-${displayEnd}:${endMinutes}${endMeridiem}`;
+            headerRow.appendChild(th);
+        });
+    }
 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const sessions = ['2024', '2023', '2022', '2021'];
-    const slotCount = 8; // Number of blank slots
 
     days.forEach((day, dayIdx) => {
         sessions.forEach((session, sessionIdx) => {
@@ -1186,6 +1297,8 @@ function renderEmptyTimetableGrid() {
             if (sessionIdx === 0 && dayIdx > 0) {
                 row.style.borderTop = '4px solid #7cb342';
             }
+            
+            // Add day cell
             if (sessionIdx === 0) {
                 const dayCell = document.createElement('td');
                 dayCell.className = 'day-cell';
@@ -1197,15 +1310,20 @@ function renderEmptyTimetableGrid() {
                 dayCell.style.background = "#388e3c";
                 row.appendChild(dayCell);
             }
+            
+            // Add session cell
             const sessionCell = document.createElement('td');
             sessionCell.className = 'session-cell';
             sessionCell.textContent = session;
             row.appendChild(sessionCell);
-            for (let i = 0; i < slotCount; i++) {
+            
+            // Add empty cells for each time slot
+            timeSlots.forEach(() => {
                 const cell = document.createElement('td');
                 cell.innerHTML = '&nbsp;';
                 row.appendChild(cell);
-            }
+            });
+            
             tableBody.appendChild(row);
         });
     });

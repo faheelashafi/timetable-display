@@ -1397,10 +1397,11 @@
 
         // Helper function to check if an entry covers a specific time slot
         function isEntryInTimeSlot(entry, slotStart) {
-            const entryStartMinutes = convertToMinutes(entry.startTime);
-            const entryEndMinutes = convertToMinutes(entry.endTime);
-            const slotStartMinutes = convertToMinutes(slotStart);
+            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+            const slotStartMinutes = convertToMinutes(normalizeTimeFormat(slotStart));
             
+            // Entry starts at or before this slot and ends after this slot starts
             return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
         }
 
