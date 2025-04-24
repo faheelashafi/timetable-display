@@ -362,22 +362,21 @@ function generatePDF() {
                     
                     const slotParts = timeSlots[i].split('-');
                     const slotStart = slotParts[0];
+                    const slotEnd = slotParts[1];
                     
-                    let foundEntry = null;
-                    for (const entry of sessionEntries) {
-                        if (isEntryInTimeSlot(entry, slotStart)) {
-                            foundEntry = entry;
-                            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                            const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
-                            const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                            row.push(cellContent);
-                            skipSlots = spanCount - 1;
-                            break;
-                        }
-                    }
+                    const entry = sessionEntries.find(e =>
+                        normalizeTimeFormat(e.startTime) === slotStart &&
+                        normalizeTimeFormat(e.endTime) === slotEnd
+                    );
                     
-                    if (!foundEntry) {
+                    if (entry) {
+                        const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                        const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                        const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
+                        const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
+                        row.push(cellContent);
+                        skipSlots = spanCount - 1;
+                    } else {
                         row.push('');
                     }
                 }
@@ -946,104 +945,109 @@ function setupAutocomplete(inputElement, listId, dataKey) {
     });
 }
 
-window.renderTimetable = function(entries) {
+function renderTimetable(entries) {
     const tableBody = document.getElementById('timetableBody');
-    if (!tableBody) {
-        console.error("No timetableBody element found in document");
-        return;
-    }
-    
-    // Clear any existing content
+    const table = document.getElementById('timetableDisplay');
+    if (!tableBody || !table) return;
+
+    // Clear previous content
     tableBody.innerHTML = '';
     
+    // Reset and prepare header
+    const thead = table.querySelector('thead');
+    if (thead) {
+        const headerRow = thead.querySelector('tr');
+        // Keep only Day and Session columns
+        while (headerRow.children.length > 2) {
+            headerRow.removeChild(headerRow.lastChild);
+        }
+    }
+
     if (!entries || entries.length === 0) {
-        console.warn("No timetable entries to display");
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 14;
-        cell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
-        cell.style.textAlign = 'center';
-        cell.style.padding = '20px';
-        row.appendChild(cell);
-        tableBody.appendChild(row);
+        renderEmptyTimetableGrid();
         return;
     }
     
-    console.log(`Rendering ${entries.length} entries to timetable`);
-    
-    // Group entries by day and session
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
-    
-    // Update table header as well
-    const table = document.getElementById('timetableDisplay');
-    if (table) {
-        const thead = table.querySelector('thead');
-        if (thead) {
-            const headerRow = thead.querySelector('tr');
-            // Remove old slot headers
-            while (headerRow.children.length > 2) {
-                headerRow.removeChild(headerRow.lastChild);
+    // Generate time slots from entries
+    const timeSlots = [];
+    entries.forEach(entry => {
+        if (entry.startTime && entry.endTime) {
+            const timeSlot = `${entry.startTime}-${entry.endTime}`;
+            if (!timeSlots.includes(timeSlot)) {
+                timeSlots.push(timeSlot);
             }
-            // Add new slot headers
-            timeSlots.forEach(slot => {
-                const th = document.createElement('th');
-                th.textContent = slot;
-                headerRow.appendChild(th);
-            });
         }
+    });
+    
+    // Sort time slots
+    timeSlots.sort();
+    
+    // Add time slots to header
+    if (thead && timeSlots.length > 0) {
+        const headerRow = thead.querySelector('tr');
+        timeSlots.forEach(slot => {
+            const th = document.createElement('th');
+            th.textContent = slot;
+            headerRow.appendChild(th);
+        });
     }
+
+    // Create table rows for each day - ALWAYS show all days and all sessions
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const allSessions = ['2021', '2022', '2023', '2024']; // Show all four sessions
     
     days.forEach(day => {
+        // Filter entries for this day
         const dayEntries = entries.filter(entry => entry.day === day);
-        if (dayEntries.length === 0) return;
         
-        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-        
-        sessions.forEach((session, sessionIndex) => {
+        // For each session - always show ALL sessions
+        allSessions.forEach((session, sessionIndex) => {
             const row = document.createElement('tr');
-            row.className = `batch-${session}`;
             
+            // Add day cell for first session of each day
             if (sessionIndex === 0) {
                 const dayCell = document.createElement('td');
                 dayCell.className = 'day-cell';
                 dayCell.textContent = day;
-                dayCell.rowSpan = sessions.length;
+                dayCell.rowSpan = allSessions.length; // Span all sessions
+                
+                // ADD EXPLICIT STYLE OVERRIDES
+                dayCell.style.display = "table-cell"; // Force visibility
+                dayCell.style.color = "#fff"; // Ensure text is visible
+                dayCell.style.fontWeight = "bold";
+                dayCell.style.background = "#388e3c";
+                
                 row.appendChild(dayCell);
             }
             
+            // Add session cell
             const sessionCell = document.createElement('td');
             sessionCell.className = 'session-cell';
             sessionCell.textContent = session;
             row.appendChild(sessionCell);
             
+            // Add cells for each time slot
             const sessionEntries = dayEntries.filter(entry => entry.session === session);
             
-            let slotIndex = 0;
-            while (slotIndex < timeSlots.length) {
-                const timeSlot = timeSlots[slotIndex];
-                const [slotStart, slotEnd] = timeSlot.split('-');
-                const entry = sessionEntries.find(e =>
-                    normalizeTimeFormat(e.startTime) === slotStart &&
-                    normalizeTimeFormat(e.endTime) === slotEnd
-                );
+            timeSlots.forEach(timeSlot => {
+                const entry = sessionEntries.find(e => `${e.startTime}-${e.endTime}` === timeSlot);
+                
                 if (entry) {
                     const cell = document.createElement('td');
                     cell.className = 'course-cell';
-                    cell.textContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                    cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
+                    cell.innerHTML = `<div style="font-weight:bold;">${entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode}</div>`;
+                    cell.title = `${entry.courseName}\nTime: ${entry.startTime}-${entry.endTime}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
                     row.appendChild(cell);
                 } else {
                     const cell = document.createElement('td');
                     row.appendChild(cell);
                 }
-                slotIndex++;
-            }
+            });
             
             tableBody.appendChild(row);
         });
     });
-};
+}
 
 // Function to load entries from localStorage and render them
 function loadAndRenderTimetable() {
@@ -1051,99 +1055,31 @@ function loadAndRenderTimetable() {
     window.renderTimetable(entries);
 }
 
-// Add this at the bottom of the file for simple entry display
-function renderTimetable(entries) {
-    const tableBody = document.getElementById('timetableBody');
-    if (!tableBody) return;
-    
-    tableBody.innerHTML = '';
-    
-    if (!entries || entries.length === 0) {
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        cell.colSpan = 14;
-        cell.textContent = 'No timetable entries found. Please add entries in the Admin Panel.';
-        cell.style.textAlign = 'center';
-        cell.style.padding = '20px';
-        row.appendChild(cell);
-        tableBody.appendChild(row);
-        return;
-    }
-    
-    // Group entries by day and session
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
-    
-    days.forEach(day => {
-        const dayEntries = entries.filter(entry => entry.day === day);
-        if (dayEntries.length === 0) return;
-        
-        const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-        
-        sessions.forEach((session, sessionIndex) => {
-            const row = document.createElement('tr');
-            row.className = `batch-${session}`;
-            
-            if (sessionIndex === 0) {
-                const dayCell = document.createElement('td');
-                dayCell.className = 'day-cell';
-                dayCell.textContent = day;
-                dayCell.rowSpan = sessions.length;
-                row.appendChild(dayCell);
-            }
-            
-            const sessionCell = document.createElement('td');
-            sessionCell.className = 'session-cell';
-            sessionCell.textContent = session;
-            row.appendChild(sessionCell);
-            
-            const sessionEntries = dayEntries.filter(entry => entry.session === session);
-            
-            let slotIndex = 0;
-            while (slotIndex < timeSlots.length) {
-                const timeSlot = timeSlots[slotIndex];
-                const [slotStart, slotEnd] = timeSlot.split('-');
-                const entry = sessionEntries.find(e =>
-                    normalizeTimeFormat(e.startTime) === slotStart &&
-                    normalizeTimeFormat(e.endTime) === slotEnd
-                );
-                if (entry) {
-                    const cell = document.createElement('td');
-                    cell.className = 'course-cell';
-                    cell.textContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                    cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
-                    row.appendChild(cell);
-                } else {
-                    const cell = document.createElement('td');
-                    row.appendChild(cell);
-                }
-                slotIndex++;
-            }
-            
-            tableBody.appendChild(row);
-        });
-    });
-}
 
 // Function to get all time slots dynamically
 function getAllTimeSlots(entries) {
-    // Collect all unique (start, end) pairs as slot strings
+    // Make sure we have entries with time info
+    const validEntries = entries.filter(e => e.startTime && e.endTime);
+    if (validEntries.length === 0) {
+        console.warn("No entries with valid time information found");
+        return ["No time slots"];
+    }
+    
+    // Collect all unique time slots
     const slotSet = new Set();
-    entries.forEach(entry => {
-        if (entry.startTime && entry.endTime) {
-            const slot = `${normalizeTimeFormat(entry.startTime)}-${normalizeTimeFormat(entry.endTime)}`;
-            slotSet.add(slot);
-        }
+    validEntries.forEach(entry => {
+        const slot = `${normalizeTimeFormat(entry.startTime)}-${normalizeTimeFormat(entry.endTime)}`;
+        slotSet.add(slot);
     });
-
-    // Convert to array and sort by start time
+    
+    // Convert to array and sort
     const slots = Array.from(slotSet);
     slots.sort((a, b) => {
         const aStart = convertToMinutes(a.split('-')[0]);
         const bStart = convertToMinutes(b.split('-')[0]);
         return aStart - bStart;
     });
-
+    
     return slots;
 }
 
@@ -1155,4 +1091,122 @@ function addMinutes(time, minsToAdd) {
     let mins = total % 60;
     // Pad with zero if needed
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+function renderHardcodedGrid(showSaturday = false, showSunday = false) {
+    const tableBody = document.getElementById('timetableBody');
+    const table = document.getElementById('timetableDisplay');
+    if (!tableBody || !table) return;
+
+    // Clear previous content
+    tableBody.innerHTML = '';
+
+    // Define days and sessions
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const sessions = ['2021', '2022', '2023', '2024'];
+
+    // Remove old slot headers
+    const thead = table.querySelector('thead');
+    if (thead) {
+        const headerRow = thead.querySelector('tr');
+        while (headerRow.children.length > 2) {
+            headerRow.removeChild(headerRow.lastChild);
+        }
+        // Add 8 EMPTY slot columns - no text content
+        for (let i = 1; i <= 8; i++) {
+            const th = document.createElement('th');
+            th.innerHTML = '&nbsp;'; // Empty non-breaking space
+            headerRow.appendChild(th);
+        }
+    }
+
+    // Filter days based on checkbox options
+    const filteredDays = days.filter(day => {
+        if (day === 'Saturday' && !showSaturday) return false;
+        if (day === 'Sunday' && !showSunday) return false;
+        return true;
+    });
+
+    // Create table rows for each day and session
+    filteredDays.forEach((day, dayIdx) => {
+        sessions.forEach((session, sessionIdx) => {
+            const row = document.createElement('tr');
+            
+            // Add day cell only for the first session of each day
+            if (sessionIdx === 0) {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = day; // This sets the day name
+                dayCell.rowSpan = sessions.length;
+                dayCell.style.display = "table-cell"; // Force visibility
+                dayCell.style.color = "#fff"; // Ensure text is visible
+                dayCell.style.fontWeight = "bold";
+                dayCell.style.background = "#388e3c";
+                row.appendChild(dayCell);
+            }
+            
+            // Add session cell
+            const sessionCell = document.createElement('td');
+            sessionCell.className = 'session-cell';
+            sessionCell.textContent = session;
+            row.appendChild(sessionCell);
+            
+            // Add empty slots with random distribution
+            const slotCount = Math.floor(Math.random() * 5) + 4; // 4-8 slots
+            for (let i = 0; i < slotCount; i++) {
+                const cell = document.createElement('td');
+                cell.innerHTML = '&nbsp;';
+                row.appendChild(cell);
+            }
+            
+            // Fill remaining slots
+            for (let i = slotCount; i < 8; i++) {
+                const cell = document.createElement('td');
+                cell.style.background = "#f4f4f4";
+                row.appendChild(cell);
+            }
+            
+            tableBody.appendChild(row);
+        });
+    });
+}
+
+function renderEmptyTimetableGrid() {
+    const tableBody = document.getElementById('timetableBody');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const sessions = ['2024', '2023', '2022', '2021'];
+    const slotCount = 8; // Number of blank slots
+
+    days.forEach((day, dayIdx) => {
+        sessions.forEach((session, sessionIdx) => {
+            const row = document.createElement('tr');
+            if (sessionIdx === 0 && dayIdx > 0) {
+                row.style.borderTop = '4px solid #7cb342';
+            }
+            if (sessionIdx === 0) {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = day;
+                dayCell.rowSpan = sessions.length;
+                dayCell.style.display = "table-cell"; // Force visibility
+                dayCell.style.color = "#fff"; // Ensure text is visible
+                dayCell.style.fontWeight = "bold";
+                dayCell.style.background = "#388e3c";
+                row.appendChild(dayCell);
+            }
+            const sessionCell = document.createElement('td');
+            sessionCell.className = 'session-cell';
+            sessionCell.textContent = session;
+            row.appendChild(sessionCell);
+            for (let i = 0; i < slotCount; i++) {
+                const cell = document.createElement('td');
+                cell.innerHTML = '&nbsp;';
+                row.appendChild(cell);
+            }
+            tableBody.appendChild(row);
+        });
+    });
 }

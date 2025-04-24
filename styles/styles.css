@@ -187,14 +187,7 @@ button.small {
     overflow-x: auto;
 }
 
-.table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 5px 0;
-    font-size: 13px;
-    border: 1px solid #ddd;
-}
-
+/* Timetable Table Improvements */
 .table th,
 .table td {
     min-width: 110px;
@@ -205,115 +198,59 @@ button.small {
 }
 
 .table th {
-    background-color: #4caf50;
+    background-color: #388e3c;
     color: #fff;
     font-weight: 700;
     letter-spacing: 0.5px;
+    border-bottom: 3px solid #7cb342;
 }
 
-.table tr:nth-child(even) td {
-    background-color: #f8f9fa;
-}
-
-.table tr:nth-child(odd) td {
-    background-color: #f4fff7;
-}
-
-.table .day-cell,
-td:first-child {
-    font-weight: 600;
-    color: white;
-    text-align: center;
-    padding: 5px 2px;
+.table .day-cell {
+    background: #388e3c;
+    color: #fff;
+    font-weight: bold;
+    text-align: left;
+    vertical-align: middle;
+    border-right: 2px solid #7cb342;
 }
 
 .table .session-cell {
-    background-color: #f9f9f9 !important;
-    color: #333;
+    background: #e8f5e9;
+    color: #222;
     font-weight: 600;
-    text-align: center;
-    border: 1px solid #ddd;
+    border-right: 1px solid #b2bec3;
 }
 
-.table td.course-cell,
-.table td.has-course {
-    font-weight: 600;
-    color: #216a42; /* Darker green for better contrast */
-    text-align: center;
-    border: 1px solid rgba(39, 174, 96, 0.5);
-    box-shadow: inset 0 0 5px rgba(46, 204, 113, 0.2);
-    padding: 5px 2px;
+.table tr:nth-child(even) td {
+    background: #f8f9fa;
+}
+
+.table tr:nth-child(odd) td {
+    background: #f4fff7;
 }
 
 .table .course-cell {
-    background-color: #f3eaff;
+    background: #f3eaff;
     color: #222;
     font-weight: 600;
     border-radius: 4px;
-}
-
-.table .lab-course {
-    background-color: #fff8e1 !important;
-    font-style: italic;
+    border: 1px solid #d1c4e9;
 }
 
 .table td {
     vertical-align: middle;
 }
 
-.batch-2021 td.course-cell {
-    background-color: rgba(226, 214, 255, 0.3) !important; /* Very light lavender with transparency */
+.table tr:not(:first-child):nth-child(4n+1) td {
+    border-top: 4px solid #7cb342 !important;
 }
 
-.batch-2022 td.course-cell {
-    background-color: rgba(200, 237, 204, 0.4) !important; /* Very light green with transparency */
-}
-
-.batch-2023 td.course-cell {
-    background-color: rgba(203, 232, 255, 0.4) !important; /* Very light blue with transparency */
-}
-
-.batch-2024 td.course-cell {
-    background-color: rgba(255, 250, 230, 0.4) !important; /* Very light yellow with transparency */
-}
-
-.batch-2021 {
-    background-color: #f2efff !important; /* Very light lavender */
-}
-
-.batch-2022 {
-    background-color: #e8f7e8 !important; /* Very light pastel green */
-}
-
-.batch-2023 {
-    background-color: #e7f4ff !important; /* Very light sky blue */
-}
-
-.batch-2024 {
-    background-color: #fffbeb !important; /* Very light cream/yellow */
-}
-
-.table tr:nth-child(even) {
-    background-color: #f8f9fa;
-}
-
-.table tr:hover {
-    background-color: var(--hover-bg);
-}
-
-.table td:empty {
-    background-color: white;
-    border: 1px solid #eee;
-}
-
-.table tr td:first-child,
-.table tr th:first-child {
-    border-left: none;
-}
-
-.table tr td:last-child,
-.table tr th:last-child {
-    border-right: none;
+@media (max-width: 900px) {
+    .table th, .table td {
+        min-width: 80px;
+        font-size: 12px;
+        padding: 6px 2px;
+    }
 }
 
 /* Timetable Header */
@@ -563,14 +500,6 @@ td:first-child {
     
     .timetable-header h3, .timetable-header h4 {
         font-size: 12px;
-    }
-}
-
-@media (max-width: 900px) {
-    .table th, .table td {
-        min-width: 80px;
-        font-size: 12px;
-        padding: 6px 2px;
     }
 }
 

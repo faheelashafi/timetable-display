@@ -671,6 +671,14 @@
                                     <input type="checkbox" name="day" value="Friday" style="margin-right: 5px; width: auto;">
                                     Friday
                                 </label>
+                                <label style="display: flex; align-items: center; font-weight: normal;">
+                                    <input type="checkbox" name="day" value="Saturday" style="margin-right: 5px; width: auto;">
+                                    Saturday
+                                </label>
+                                <label style="display: flex; align-items: center; font-weight: normal;">
+                                    <input type="checkbox" name="day" value="Sunday" style="margin-right: 5px; width: auto;">
+                                    Sunday
+                                </label>
                             </div>
                         </div>
                         
@@ -944,6 +952,12 @@
 
             // Set up dynamic updates
             setupDynamicUpdates();
+
+            // Render hardcoded grid
+            renderHardcodedGrid(
+                document.getElementById('showSaturday').checked,
+                document.getElementById('showSunday').checked
+            );
         });
 
         // Fix for PDF generation

@@ -14,13 +14,14 @@
         <h1>Time Table</h1>
         <h3>DEPT. OF CS & IT - University of Chakwal</h3>
     </div>
+
     <div class="table-container">
         <table class="table" id="timetableDisplay">
             <thead>
                 <tr>
                     <th>Day</th>
                     <th>Session</th>
-                    <!-- Time slot columns will be added dynamically by JS -->
+                    <!-- Slot headers will be added dynamically by JS -->
                 </tr>
             </thead>
             <tbody id="timetableBody">
@@ -30,63 +31,24 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Try to load entries from localStorage
             const entries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
-            console.log('Loaded', entries.length, 'entries from localStorage');
-            if (entries.length > 0) {
-                console.log('First entry:', entries[0]);
+            
+            // If we have entries, display them
+            if (entries && entries.length > 0) {
+                renderTimetable(entries);
+            } else {
+                // Otherwise show the empty hardcoded grid
+                renderHardcodedGrid(false, false);
             }
-            renderTimetable(entries);
             
-            // Set up dynamic updates for the display
-            setupDisplayDynamicUpdates();
-        });
-
-        function setupDisplayDynamicUpdates() {
-            console.log("Setting up dynamic updates for timetable display");
-            
-            // Store current entries state for comparison
-            let currentEntriesJSON = localStorage.getItem('timetableEntries') || '[]';
-            
-            // Check for updates every 3 seconds
+            // Set up refresh to check for new entries periodically
             setInterval(function() {
-                const storedEntriesJSON = localStorage.getItem('timetableEntries');
-                
-                // Only update if the data has changed
-                if (currentEntriesJSON !== storedEntriesJSON) {
-                    console.log("Changes detected in timetable entries, updating display");
-                    
-                    // Update the stored state
-                    currentEntriesJSON = storedEntriesJSON;
-                    
-                    // Parse and render the updated entries
-                    const entries = JSON.parse(storedEntriesJSON) || [];
-                    renderTimetable(entries);
+                const updatedEntries = JSON.parse(localStorage.getItem('timetableEntries')) || [];
+                if (updatedEntries && updatedEntries.length > 0) {
+                    renderTimetable(updatedEntries);
                 }
-            }, 3000); // 3 seconds interval
-        }
-
-        // Add button functionality for PDF generation
-        document.getElementById('generatePdf')?.addEventListener('click', async function() {
-            try {
-                console.log("Starting PDF generation process...");
-                
-                // Ensure jsPDF is loaded
-                if (typeof jsPDF !== 'undefined') {
-                    window.jspdf = { jsPDF: jsPDF };
-                }
-                
-                // Double check that we have access to jsPDF
-                if (!window.jspdf || !window.jspdf.jsPDF) {
-                    throw new Error("jsPDF library not available");
-                }
-                
-                console.log("jsPDF loaded successfully, generating PDF...");
-                generatePDF();
-                
-            } catch (error) {
-                console.error("PDF generation failed:", error);
-                alert("PDF generation failed: " + error.message);
-            }
+            }, 3000);
         });
     </script>
 </body>
