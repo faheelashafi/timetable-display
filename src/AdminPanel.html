@@ -910,7 +910,27 @@
                 window.location.href = 'AdminLogin.html';
             });
             
-            document.getElementById('generatePdf')?.addEventListener('click', generatePDF);
+
+            document.getElementById('generatePdf')?.addEventListener('click', async function() {
+                try {
+                    console.log("Starting PDF generation process...");
+                    
+                    // Ensure jsPDF is loaded
+                    await ensureJsPdfLoaded();
+                    
+                    // Double check that we have access to jsPDF
+                    if (!window.jspdf || !window.jspdf.jsPDF) {
+                        throw new Error("jsPDF library not available");
+                    }
+                    
+                    console.log("jsPDF loaded successfully, generating PDF...");
+                    generatePDF();
+                    
+                } catch (error) {
+                    console.error("PDF generation failed:", error);
+                    alert("PDF generation failed: " + error.message);
+                }
+            });
             document.getElementById('viewStoredData')?.addEventListener('click', displayStoredData);
             document.getElementById('clearAllEntries')?.addEventListener('click', function() {
                 if (confirm('Are you sure you want to delete all entries? This cannot be undone!')) {
@@ -925,6 +945,88 @@
             // Set up dynamic updates
             setupDynamicUpdates();
         });
+
+        // Fix for PDF generation
+        function ensureJsPdfLoaded() {
+            return new Promise((resolve, reject) => {
+                // Check if jsPDF is already available through the scripts in the head
+                if (window.jspdf && window.jspdf.jsPDF) {
+                    console.log("jsPDF already available in window.jspdf namespace");
+                    return resolve();
+                }
+                
+                if (typeof jsPDF !== 'undefined') {
+                    console.log("jsPDF found in global scope, setting up namespace");
+                    window.jspdf = { jsPDF: jsPDF };
+                    return resolve();
+                }
+                
+                console.log("jsPDF not found, loading from CDN");
+                
+                // Function to check if jsPDF is available and configure it properly
+                function configureJsPdf() {
+                    console.log("Configuring jsPDF...");
+                    // Try to find jsPDF in various possible locations
+                    if (typeof jsPDF !== 'undefined') {
+                        window.jspdf = { jsPDF: jsPDF };
+                        console.log("Successfully configured jsPDF from global variable");
+                        return true;
+                    } else if (window.jspdf && window.jspdf.jsPDF) {
+                        console.log("jsPDF already configured in window.jspdf");
+                        return true;
+                    } else {
+                        console.warn("jsPDF not found in expected locations");
+                        return false;
+                    }
+                }
+                
+                // Create new script elements with specific attributes for better reliability
+                const jspdfScript = document.createElement('script');
+                jspdfScript.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+                jspdfScript.async = false; // Synchronous loading
+                jspdfScript.crossOrigin = "anonymous";
+                
+                const autoTableScript = document.createElement('script');
+                autoTableScript.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js";
+                autoTableScript.async = false; // Synchronous loading
+                autoTableScript.crossOrigin = "anonymous";
+                
+                // Handle loading sequence
+                jspdfScript.onload = function() {
+                    console.log("Main jsPDF script loaded from CDN");
+                    
+                    // Add autotable script after main script loads
+                    document.head.appendChild(autoTableScript);
+                };
+                
+                autoTableScript.onload = function() {
+                    console.log("AutoTable plugin loaded from CDN");
+                    
+                    // Check for jsPDF multiple times with increasing delays
+                    // This helps ensure the scripts have time to initialize
+                    setTimeout(() => {
+                        if (configureJsPdf()) {
+                            resolve();
+                        } else {
+                            setTimeout(() => {
+                                if (configureJsPdf()) {
+                                    resolve();
+                                } else {
+                                    reject(new Error("jsPDF not available after multiple attempts"));
+                                }
+                            }, 200); // Second attempt with longer delay
+                        }
+                    }, 50); // First attempt
+                };
+                
+                // Error handlers
+                jspdfScript.onerror = () => reject(new Error("Failed to load jsPDF script"));
+                autoTableScript.onerror = () => reject(new Error("Failed to load AutoTable plugin"));
+                
+                // Start loading process
+                document.head.appendChild(jspdfScript);
+            });
+        }
 
         // Display entries in admin panel
         function displayEntriesInAdmin() {
@@ -1013,26 +1115,64 @@
         function setupDynamicUpdates() {
             console.log("Setting up dynamic updates through polling");
             
+            // Store the current state of data lists
+            let currentTeacherNames = JSON.stringify(dataManager.getData(dataManager.keys.teacherNames));
+            let currentVenues = JSON.stringify(dataManager.getData(dataManager.keys.venues));
+            let currentCourseNames = JSON.stringify(dataManager.getData(dataManager.keys.courseNames));
+            let currentCourseCodes = JSON.stringify(dataManager.getData(dataManager.keys.courseCodes));
+            
             // Check for updates every 3 seconds
             setInterval(function() {
+                // Check for timetable entries updates
                 const storedEntriesJSON = localStorage.getItem('timetableEntries');
-                // Compare and update if needed
+                
                 try {
                     // Parse the stored entries
                     const storedEntries = JSON.parse(storedEntriesJSON) || [];
                     
                     // Compare with current entries
                     const currentJSON = JSON.stringify(window.timetableEntries);
+                    let hasChanges = false;
                     
                     if (currentJSON !== storedEntriesJSON) {
-                        // Update when data has changed
                         console.log("Changes detected in timetable entries, updating UI");
                         
                         // Update the entries
                         window.timetableEntries = storedEntries;
                         displayEntriesInAdmin();
                         updateStats();
+                        hasChanges = true;
                     }
+                    
+                    // Check for data management updates
+                    const newTeacherNames = JSON.stringify(dataManager.getData(dataManager.keys.teacherNames));
+                    const newVenues = JSON.stringify(dataManager.getData(dataManager.keys.venues));
+                    const newCourseNames = JSON.stringify(dataManager.getData(dataManager.keys.courseNames));
+                    const newCourseCodes = JSON.stringify(dataManager.getData(dataManager.keys.courseCodes));
+                    
+                    if (newTeacherNames !== currentTeacherNames || 
+                        newVenues !== currentVenues || 
+                        newCourseNames !== currentCourseNames || 
+                        newCourseCodes !== currentCourseCodes) {
+                        console.log("Changes detected in data management lists, updating UI");
+                        
+                        // Update the data lists
+                        populateDataLists();
+                        
+                        // Update the stored state
+                        currentTeacherNames = newTeacherNames;
+                        currentVenues = newVenues;
+                        currentCourseNames = newCourseNames;
+                        currentCourseCodes = newCourseCodes;
+                        
+                        hasChanges = true;
+                    }
+                    
+                    // If any changes occurred, update data management
+                    if (hasChanges) {
+                        dataManager.importFromEntries();
+                    }
+                    
                 } catch (error) {
                     console.error("Error checking for updates:", error);
                 }
