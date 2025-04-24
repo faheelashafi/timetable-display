@@ -75,6 +75,30 @@
                 }
             }, 3000); // 3 seconds interval
         }
+
+        // Add button functionality for PDF generation
+        document.getElementById('generatePdf')?.addEventListener('click', async function() {
+            try {
+                console.log("Starting PDF generation process...");
+                
+                // Ensure jsPDF is loaded
+                if (typeof jsPDF !== 'undefined') {
+                    window.jspdf = { jsPDF: jsPDF };
+                }
+                
+                // Double check that we have access to jsPDF
+                if (!window.jspdf || !window.jspdf.jsPDF) {
+                    throw new Error("jsPDF library not available");
+                }
+                
+                console.log("jsPDF loaded successfully, generating PDF...");
+                generatePDF();
+                
+            } catch (error) {
+                console.error("PDF generation failed:", error);
+                alert("PDF generation failed: " + error.message);
+            }
+        });
     </script>
 </body>
 </html>
