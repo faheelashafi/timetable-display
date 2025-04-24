@@ -1199,11 +1199,7 @@
 
                 const entries = window.timetableEntries || JSON.parse(localStorage.getItem('timetableEntries')) || [];
                 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-                const timeSlots = [
-                    '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', 
-                    '03:00-03:30', '03:30-04:00', '04:00-04:30', '04:30-05:00', 
-                    '05:00-05:30', '05:30-06:00', '06:00-06:30', '06:30-07:00'
-                ];
+                const timeSlots = getAllTimeSlots(entries);
                 const headers = ['Day', 'Session', ...timeSlots];
                 const tableData = [];
 
@@ -1409,7 +1405,29 @@
             
             return hours * 60 + minutes;
         }
+
+        function getAllTimeSlots(entries) {
+            // Predefined slots (as start times)
+            const baseSlots = [
+                '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
+                '04:00', '04:30', '05:00', '05:30', '06:00', '06:30', '07:00'
+            ];
+            // Collect all start and end times from entries
+            const entrySlots = [];
+            entries.forEach(entry => {
+                if (entry.startTime && !entrySlots.includes(entry.startTime)) entrySlots.push(entry.startTime);
+                if (entry.endTime && !entrySlots.includes(entry.endTime)) entrySlots.push(entry.endTime);
+            });
+            // Combine, deduplicate, and sort
+            const allSlots = Array.from(new Set([...baseSlots, ...entrySlots]));
+            allSlots.sort((a, b) => convertToMinutes(a) - convertToMinutes(b));
+            // Build slot ranges (e.g., 01:00-01:30, 01:30-02:00, ...)
+            const slotRanges = [];
+            for (let i = 0; i < allSlots.length - 1; i++) {
+                slotRanges.push(`${allSlots[i]}-${allSlots[i + 1]}`);
+            }
+            return slotRanges;
+        }
     </script>
 </body>
 </html>
-``` 

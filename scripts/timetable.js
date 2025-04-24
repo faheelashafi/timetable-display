@@ -336,15 +336,11 @@ function generatePDF() {
         doc.setFontSize(12);
         doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
         
-        const sessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
+        const entries = window.timetableEntries || JSON.parse(localStorage.getItem('timetableEntries')) || [];
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const timeSlots = [
-            '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', '03:00-03:30', '03:30-04:00',
-            '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', '06:00-06:30', '06:30-07:00'
-        ];
-        
-        const headers = ['Day', 'Session', ...timeSlots.map(slot => slot)];
-        let tableData = [];
+        const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
+        const headers = ['Day', 'Session', ...timeSlots];
+        const tableData = [];
         
         days.forEach(day => {
             const dayEntries = timetableEntries.filter(entry => entry.day === day);
@@ -977,24 +973,37 @@ window.renderTimetable = function(entries) {
     
     // Group entries by day and session
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const timeSlots = [
-        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
-        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
-    ];
+    const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
+    
+    // Update table header as well
+    const table = document.getElementById('timetableDisplay');
+    if (table) {
+        const thead = table.querySelector('thead');
+        if (thead) {
+            const headerRow = thead.querySelector('tr');
+            // Remove old slot headers
+            while (headerRow.children.length > 2) {
+                headerRow.removeChild(headerRow.lastChild);
+            }
+            // Add new slot headers
+            timeSlots.forEach(slot => {
+                const th = document.createElement('th');
+                th.textContent = slot;
+                headerRow.appendChild(th);
+            });
+        }
+    }
     
     days.forEach(day => {
         const dayEntries = entries.filter(entry => entry.day === day);
         if (dayEntries.length === 0) return;
         
-        // Get unique sessions for this day
         const sessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
         
-        // For each session, create a row
         sessions.forEach((session, sessionIndex) => {
             const row = document.createElement('tr');
             row.className = `batch-${session}`;
             
-            // Add day cell (only for first session in the day)
             if (sessionIndex === 0) {
                 const dayCell = document.createElement('td');
                 dayCell.className = 'day-cell';
@@ -1003,55 +1012,32 @@ window.renderTimetable = function(entries) {
                 row.appendChild(dayCell);
             }
             
-            // Add session cell
             const sessionCell = document.createElement('td');
             sessionCell.className = 'session-cell';
             sessionCell.textContent = session;
             row.appendChild(sessionCell);
             
-            // Get entries for this session
             const sessionEntries = dayEntries.filter(entry => entry.session === session);
             
-            // Add cells for each time slot
             let slotIndex = 0;
             while (slotIndex < timeSlots.length) {
                 const timeSlot = timeSlots[slotIndex];
-                
-                // Find an entry for this time slot
-                const entry = sessionEntries.find(e => {
-                    const startMinutes = convertToMinutes(e.startTime);
-                    const endMinutes = convertToMinutes(e.endTime);
-                    const slotMinutes = convertToMinutes(timeSlot);
-                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
-                });
-                
+                const [slotStart, slotEnd] = timeSlot.split('-');
+                const entry = sessionEntries.find(e =>
+                    normalizeTimeFormat(e.startTime) === slotStart &&
+                    normalizeTimeFormat(e.endTime) === slotEnd
+                );
                 if (entry) {
-                    // Calculate how many slots this entry spans
-                    const startMinutes = convertToMinutes(entry.startTime);
-                    const endMinutes = convertToMinutes(entry.endTime);
-                    const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-                    
-                    // Create the cell for this entry
                     const cell = document.createElement('td');
                     cell.className = 'course-cell';
-                    if (entry.isLab || (entry.courseCode && entry.courseCode.toLowerCase().includes('lab'))) {
-                        cell.className += ' lab-course';
-                        cell.textContent = entry.courseCode + ' Lab';
-                    } else {
-                        cell.textContent = entry.courseCode;
-                    }
-                    cell.colSpan = spanCount;
+                    cell.textContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
                     cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
                     row.appendChild(cell);
-                    
-                    // Skip ahead by the span count
-                    slotIndex += spanCount;
                 } else {
-                    // Empty cell
                     const cell = document.createElement('td');
                     row.appendChild(cell);
-                    slotIndex++;
                 }
+                slotIndex++;
             }
             
             tableBody.appendChild(row);
@@ -1086,10 +1072,7 @@ function renderTimetable(entries) {
     
     // Group entries by day and session
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const timeSlots = [
-        '01:00', '01:30', '02:00', '02:30', '03:00', '03:30',
-        '04:00', '04:30', '05:00', '05:30', '06:00', '06:30'
-    ];
+    const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
     
     days.forEach(day => {
         const dayEntries = entries.filter(entry => entry.day === day);
@@ -1119,40 +1102,57 @@ function renderTimetable(entries) {
             let slotIndex = 0;
             while (slotIndex < timeSlots.length) {
                 const timeSlot = timeSlots[slotIndex];
-                
-                const entry = sessionEntries.find(e => {
-                    const startMinutes = convertToMinutes(e.startTime);
-                    const endMinutes = convertToMinutes(e.endTime);
-                    const slotMinutes = convertToMinutes(timeSlot);
-                    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
-                });
-                
+                const [slotStart, slotEnd] = timeSlot.split('-');
+                const entry = sessionEntries.find(e =>
+                    normalizeTimeFormat(e.startTime) === slotStart &&
+                    normalizeTimeFormat(e.endTime) === slotEnd
+                );
                 if (entry) {
-                    const startMinutes = convertToMinutes(entry.startTime);
-                    const endMinutes = convertToMinutes(entry.endTime);
-                    const spanCount = Math.ceil((endMinutes - startMinutes) / 30);
-                    
                     const cell = document.createElement('td');
                     cell.className = 'course-cell';
-                    if (entry.isLab || (entry.courseCode && entry.courseCode.toLowerCase().includes('lab'))) {
-                        cell.className += ' lab-course';
-                        cell.textContent = entry.courseCode + ' Lab';
-                    } else {
-                        cell.textContent = entry.courseCode;
-                    }
-                    cell.colSpan = spanCount;
+                    cell.textContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
                     cell.title = `${entry.courseName}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
                     row.appendChild(cell);
-                    
-                    slotIndex += spanCount;
                 } else {
                     const cell = document.createElement('td');
                     row.appendChild(cell);
-                    slotIndex++;
                 }
+                slotIndex++;
             }
             
             tableBody.appendChild(row);
         });
     });
+}
+
+// Function to get all time slots dynamically
+function getAllTimeSlots(entries) {
+    // Collect all unique (start, end) pairs as slot strings
+    const slotSet = new Set();
+    entries.forEach(entry => {
+        if (entry.startTime && entry.endTime) {
+            const slot = `${normalizeTimeFormat(entry.startTime)}-${normalizeTimeFormat(entry.endTime)}`;
+            slotSet.add(slot);
+        }
+    });
+
+    // Convert to array and sort by start time
+    const slots = Array.from(slotSet);
+    slots.sort((a, b) => {
+        const aStart = convertToMinutes(a.split('-')[0]);
+        const bStart = convertToMinutes(b.split('-')[0]);
+        return aStart - bStart;
+    });
+
+    return slots;
+}
+
+// Helper to add minutes to a time string
+function addMinutes(time, minsToAdd) {
+    const [h, m] = time.split(':').map(Number);
+    let total = h * 60 + m + minsToAdd;
+    let hours = Math.floor(total / 60);
+    let mins = total % 60;
+    // Pad with zero if needed
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 }
