@@ -106,6 +106,45 @@
             margin: 0;
         }
         
+        /* Pastel backgrounds for course entries (slots) */
+        .table td.course-cell {
+            background-color: #e3f2fd !important; /* Light blue pastel */
+            color: #222;
+            font-weight: 600;
+            border-radius: 0;
+            border: 1px solid #d1c4e9;
+            padding: 0.2vh 0.1vw;
+        }
+
+        /* Alternate pastel backgrounds for better distinction */
+        .table tr:nth-child(even) td.course-cell {
+            background-color: #fffde7 !important; /* Light yellow pastel */
+        }
+        .table tr:nth-child(odd) td.course-cell {
+            background-color: #e3f2fd !important; /* Light blue pastel */
+        }
+
+        /* 4-color pastel zebra striping for timetable slots */
+        .table tr:nth-child(4n+1) td.course-cell {
+            background-color: #e3f2fd !important; /* Light blue */
+        }
+        .table tr:nth-child(4n+2) td.course-cell {
+            background-color: #e8f5e9 !important; /* Light green */
+        }
+        .table tr:nth-child(4n+3) td.course-cell {
+            background-color: #fffde7 !important; /* Light yellow */
+        }
+        .table tr:nth-child(4n+4) td.course-cell {
+            background-color: #fce4ec !important; /* Light pink */
+        }
+
+        /* Lab highlight */
+        .table td.course-cell.lab-course {
+            background-color: #ffe0b2 !important; /* Light orange pastel for labs */
+            color: #795548;
+            font-style: italic;
+        }
+        
         /* Media query for very wide screens */
         @media (min-aspect-ratio: 16/9) {
             .table-container {

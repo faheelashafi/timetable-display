@@ -1146,6 +1146,7 @@ function renderTimetable(entries) {
                     // Create the cell
                     const cell = document.createElement('td');
                     cell.className = 'course-cell';
+                    if (entry.isLab) cell.classList.add('lab-course');
                     
                     // Set colspan if needed
                     if (slotSpan > 1 && slotIndex + slotSpan <= timeSlots.length) {
