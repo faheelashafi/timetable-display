@@ -1,4 +1,19 @@
+import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, addDoc, setDoc, doc, deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+
+// Your firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyB6PZysrQMckTjMuBVv0FohIaI9FJIrhLQ",
+  authDomain: "timetable-c8.firebaseapp.com",
+  projectId: "timetable-c8",
+  storageBucket: "timetable-c8.appspot.com",
+  messagingSenderId: "58609356223",
+  appId: "1:58609356223:web:c7a7f6014324f05605a50a",
+  measurementId: "G-DFEDHHHV88"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // Updated time utilities for more reliable comparison
@@ -149,6 +164,31 @@ const dataManager = {
             return true;
         }
         return false;
+    },
+
+    // Import data from timetable entries
+    importFromEntries: async function() {
+        try {
+            const entries = await getAllTimetableEntries();
+            const teachers = [];
+            const venues = [];
+            const courseNames = [];
+            const courseCodes = [];
+            
+            entries.forEach(entry => {
+                if (entry.teacherName && !teachers.includes(entry.teacherName)) teachers.push(entry.teacherName);
+                if (entry.venue && !venues.includes(entry.venue)) venues.push(entry.venue);
+                if (entry.courseName && !courseNames.includes(entry.courseName)) courseNames.push(entry.courseName);
+                if (entry.courseCode && !courseCodes.includes(entry.courseCode)) courseCodes.push(entry.courseCode);
+            });
+            
+            await this.addItems(this.keys.teacherNames, teachers);
+            await this.addItems(this.keys.venues, venues);
+            await this.addItems(this.keys.courseNames, courseNames);
+            await this.addItems(this.keys.courseCodes, courseCodes);
+        } catch (error) {
+            console.error("Error importing entries to suggestions:", error);
+        }
     }
 };
 
@@ -313,215 +353,212 @@ async function displayEntriesInAdmin() {
 function generatePDF() {
     try {
         // Check if jsPDF is loaded
-        if (typeof window.jspdf === 'undefined') {
-            window.jspdf = window.jspdf || {};
-            if (typeof jsPDF !== 'undefined') {
-                window.jspdf.jsPDF = jsPDF;
+        ensureJsPdfLoaded().then(() => {
+            const { jsPDF } = window.jspdf;
+            if (!jsPDF) {
+                alert("PDF generation failed: jsPDF library not loaded properly");
+                return;
             }
-        }
-        
-        const { jsPDF } = window.jspdf;
-        if (!jsPDF) {
-            alert("PDF generation failed: jsPDF library not loaded properly");
-            return;
-        }
-        
-        const doc = new jsPDF('l', 'mm', 'a4');
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Time Table Fall Semester 2024', doc.internal.pageSize.width / 2, 15, { align: 'center' });
-        doc.setFontSize(14);
-        doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
-            doc.internal.pageSize.width / 2, 22, { align: 'center' });
-        doc.setFontSize(12);
-        doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
-        
-        const entries = window.timetableEntries || [];
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
-        const headers = ['Day', 'Session', ...timeSlots];
-        const tableData = [];
-        
-        days.forEach(day => {
-            const dayEntries = timetableEntries.filter(entry => entry.day === day);
-            if (dayEntries.length === 0) return;
             
-            const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-            daySessions.forEach((session, index) => {
-                const row = [];
-                row.push(index === 0 ? day : '');
-                row.push(session);
-                const sessionEntries = dayEntries.filter(entry => entry.session.toString() === session.toString());
+            const doc = new jsPDF('l', 'mm', 'a4');
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Time Table Fall Semester 2024', doc.internal.pageSize.width / 2, 15, { align: 'center' });
+            doc.setFontSize(14);
+            doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
+                doc.internal.pageSize.width / 2, 22, { align: 'center' });
+            doc.setFontSize(12);
+            doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
+            
+            const entries = window.timetableEntries || [];
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
+            const headers = ['Day', 'Session', ...timeSlots];
+            const tableData = [];
+            
+            days.forEach(day => {
+                const dayEntries = timetableEntries.filter(entry => entry.day === day);
+                if (dayEntries.length === 0) return;
                 
-                let skipSlots = 0;
-                for (let i = 0; i < timeSlots.length; i++) {
-                    if (skipSlots > 0) {
-                        skipSlots--;
-                        continue;
-                    }
+                const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+                daySessions.forEach((session, index) => {
+                    const row = [];
+                    row.push(index === 0 ? day : '');
+                    row.push(session);
+                    const sessionEntries = dayEntries.filter(entry => entry.session.toString() === session.toString());
                     
-                    const slotParts = timeSlots[i].split('-');
-                    const slotStart = slotParts[0];
-                    const slotEnd = slotParts[1];
-                    
-                    const entry = sessionEntries.find(e =>
-                        normalizeTimeFormat(e.startTime) === slotStart &&
-                        normalizeTimeFormat(e.endTime) === slotEnd
-                    );
-                    
-                    if (entry) {
-                        const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                        const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                        const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
-                        const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                        row.push(cellContent);
-                        skipSlots = spanCount - 1;
-                    } else {
-                        row.push('');
-                    }
-                }
-                tableData.push(row);
-            });
-        });
-        
-        const startY = 35;
-        doc.autoTable({
-            head: [headers],
-            body: tableData,
-            startY: startY,
-            styles: {
-                fontSize: 8,
-                cellPadding: 2
-            },
-            columnStyles: {
-                0: { cellWidth: 20 },
-                1: { cellWidth: 15 }
-            },
-            didParseCell: function(data) {
-                if (data.section === 'body') {
-                    const session = data.row.cells[1].text;
-                    if (data.column.index < 2) {
-                        if (data.column.index === 0) {
-                            data.cell.styles.fillColor = [73, 124, 15];
-                            data.cell.styles.textColor = [255, 255, 255];
-                            data.cell.styles.fontStyle = 'bold';
-                        } else {
-                            data.cell.styles.fillColor = [240, 240, 240];
+                    let skipSlots = 0;
+                    for (let i = 0; i < timeSlots.length; i++) {
+                        if (skipSlots > 0) {
+                            skipSlots--;
+                            continue;
                         }
-                    } else if (data.row.cells[1].text) {
-                        if (data.row.cells[data.column.index].text) {
-                            const isLab = data.row.cells[data.column.index].text.includes('Lab');
-                            data.cell.styles.fillColor = [240, 240, 240];
-                            if (isLab) {
-                                data.cell.styles.fillColor = [255, 243, 205];
+                        
+                        const slotParts = timeSlots[i].split('-');
+                        const slotStart = slotParts[0];
+                        const slotEnd = slotParts[1];
+                        
+                        const entry = sessionEntries.find(e =>
+                            normalizeTimeFormat(e.startTime) === slotStart &&
+                            normalizeTimeFormat(e.endTime) === slotEnd
+                        );
+                        
+                        if (entry) {
+                            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                            const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
+                            const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
+                            row.push(cellContent);
+                            skipSlots = spanCount - 1;
+                        } else {
+                            row.push('');
+                        }
+                    }
+                    tableData.push(row);
+                });
+            });
+            
+            const startY = 35;
+            doc.autoTable({
+                head: [headers],
+                body: tableData,
+                startY: startY,
+                styles: {
+                    fontSize: 8,
+                    cellPadding: 2
+                },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 15 }
+                },
+                didParseCell: function(data) {
+                    if (data.section === 'body') {
+                        const session = data.row.cells[1].text;
+                        if (data.column.index < 2) {
+                            if (data.column.index === 0) {
+                                data.cell.styles.fillColor = [73, 124, 15];
+                                data.cell.styles.textColor = [255, 255, 255];
+                                data.cell.styles.fontStyle = 'bold';
+                            } else {
+                                data.cell.styles.fillColor = [240, 240, 240];
+                            }
+                        } else if (data.row.cells[1].text) {
+                            if (data.row.cells[data.column.index].text) {
+                                const isLab = data.row.cells[data.column.index].text.includes('Lab');
+                                data.cell.styles.fillColor = [240, 240, 240];
+                                if (isLab) {
+                                    data.cell.styles.fillColor = [255, 243, 205];
+                                } else {
+                                    switch(session) {
+                                        case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
+                                        case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
+                                        case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
+                                        case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
+                                    }
+                                }
                             } else {
                                 switch(session) {
-                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
-                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
-                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
-                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
+                                    case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
+                                    case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
+                                    case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
+                                    case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
                                 }
                             }
-                        } else {
-                            switch(session) {
-                                case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
-                                case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
-                                case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
-                                case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
-                            }
                         }
+                    } else if (data.section === 'head') {
+                        data.cell.styles.fillColor = [73, 124, 15];
+                        data.cell.styles.textColor = [255, 255, 255];
+                        data.cell.styles.fontStyle = 'bold';
                     }
-                } else if (data.section === 'head') {
-                    data.cell.styles.fillColor = [73, 124, 15];
-                    data.cell.styles.textColor = [255, 255, 255];
-                    data.cell.styles.fontStyle = 'bold';
-                }
-            }
-        });
-        
-        sessions.forEach((session, index) => {
-            if (index > 0) {
-                doc.addPage();
-            } else if (doc.lastAutoTable) {
-                doc.lastAutoTable.finalY += 15;
-            }
-            
-            const sessionYear = parseInt(session);
-            const currentYear = new Date().getFullYear();
-            let semesterNum;
-            const currentMonth = new Date().getMonth();
-            const isFall = currentMonth >= 6 && currentMonth <= 11;
-            if (isFall) {
-                const yearDiff = currentYear - sessionYear;
-                if (yearDiff === 0) semesterNum = "1st";
-                else if (yearDiff === 1) semesterNum = "3rd";
-                else if (yearDiff === 2) semesterNum = "5th";
-                else if (yearDiff === 3) semesterNum = "7th";
-                else semesterNum = "";
-            } else {
-                const yearDiff = (currentYear-1) - sessionYear;
-                if (yearDiff === 0) semesterNum = "2nd";
-                else if (yearDiff === 1) semesterNum = "4th";
-                else if (yearDiff === 2) semesterNum = "6th";
-                else if (yearDiff === 3) semesterNum = "8th";
-                else semesterNum = "";
-            }
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(12);
-            const sessionTitle = `Session ${session} (${semesterNum} Semester)`;
-            doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
-            
-            const sessionEntries = timetableEntries.filter(entry => entry.session.toString() === session.toString());
-            const uniqueCourses = {};
-            sessionEntries.forEach(entry => {
-                if (!uniqueCourses[entry.courseCode]) {
-                    uniqueCourses[entry.courseCode] = entry;
                 }
             });
-            const courseData = Object.values(uniqueCourses).map(course => [
-                course.courseCode,
-                course.courseName,
-                course.creditHours,
-                course.teacherName || '',
-                course.venue
-            ]);
-            if (courseData.length > 0) {
-                doc.autoTable({
-                    head: [['Course Code', 'Course Name', 'Credit Hrs', 'Teacher Name', 'Venue']],
-                    body: courseData,
-                    startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 125,
-                    styles: {
-                        fontSize: 9,
-                        cellPadding: 3
-                    },
-                    headStyles: {
-                        fillColor: [73, 124, 15],
-                        textColor: [255, 255, 255],
-                        fontStyle: 'bold'
-                    },
-                    alternateRowStyles: {
-                        fillColor: [248, 248, 248]
-                    },
-                    margin: { left: 14, right: 14 }
+            
+            sessions.forEach((session, index) => {
+                if (index > 0) {
+                    doc.addPage();
+                } else if (doc.lastAutoTable) {
+                    doc.lastAutoTable.finalY += 15;
+                }
+                
+                const sessionYear = parseInt(session);
+                const currentYear = new Date().getFullYear();
+                let semesterNum;
+                const currentMonth = new Date().getMonth();
+                const isFall = currentMonth >= 6 && currentMonth <= 11;
+                if (isFall) {
+                    const yearDiff = currentYear - sessionYear;
+                    if (yearDiff === 0) semesterNum = "1st";
+                    else if (yearDiff === 1) semesterNum = "3rd";
+                    else if (yearDiff === 2) semesterNum = "5th";
+                    else if (yearDiff === 3) semesterNum = "7th";
+                    else semesterNum = "";
+                } else {
+                    const yearDiff = (currentYear-1) - sessionYear;
+                    if (yearDiff === 0) semesterNum = "2nd";
+                    else if (yearDiff === 1) semesterNum = "4th";
+                    else if (yearDiff === 2) semesterNum = "6th";
+                    else if (yearDiff === 3) semesterNum = "8th";
+                    else semesterNum = "";
+                }
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                const sessionTitle = `Session ${session} (${semesterNum} Semester)`;
+                doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
+                
+                const sessionEntries = timetableEntries.filter(entry => entry.session.toString() === session.toString());
+                const uniqueCourses = {};
+                sessionEntries.forEach(entry => {
+                    if (!uniqueCourses[entry.courseCode]) {
+                        uniqueCourses[entry.courseCode] = entry;
+                    }
                 });
+                const courseData = Object.values(uniqueCourses).map(course => [
+                    course.courseCode,
+                    course.courseName,
+                    course.creditHours,
+                    course.teacherName || '',
+                    course.venue
+                ]);
+                if (courseData.length > 0) {
+                    doc.autoTable({
+                        head: [['Course Code', 'Course Name', 'Credit Hrs', 'Teacher Name', 'Venue']],
+                        body: courseData,
+                        startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 125,
+                        styles: {
+                            fontSize: 9,
+                            cellPadding: 3
+                        },
+                        headStyles: {
+                            fillColor: [73, 124, 15],
+                            textColor: [255, 255, 255],
+                            fontStyle: 'bold'
+                        },
+                        alternateRowStyles: {
+                            fillColor: [248, 248, 248]
+                        },
+                        margin: { left: 14, right: 14 }
+                    });
+                }
+            });
+            
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                const today = new Date().toLocaleDateString();
+                doc.setFontSize(8);
+                doc.setTextColor(100);
+                doc.text(`Generated on: ${today}`, 14, doc.internal.pageSize.height - 10);
+                doc.text(
+                    `Page ${i} of ${totalPages}`,
+                    doc.internal.pageSize.width - 25,
+                    doc.internal.pageSize.height - 10
+                );
             }
+            
+            doc.save('timetable.pdf');
+        }).catch(error => {
+            alert("Error generating PDF: " + error.message);
         });
-        
-        const totalPages = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            const today = new Date().toLocaleDateString();
-            doc.setFontSize(8);
-            doc.setTextColor(100);
-            doc.text(`Generated on: ${today}`, 14, doc.internal.pageSize.height - 10);
-            doc.text(
-                `Page ${i} of ${totalPages}`,
-                doc.internal.pageSize.width - 25,
-                doc.internal.pageSize.height - 10
-            );
-        }
-        
-        doc.save('timetable.pdf');
     } catch (error) {
         alert("Error generating PDF: " + error.message);
     }
@@ -1313,3 +1350,17 @@ deleteBtn.textContent = 'Delete';
 deleteBtn.addEventListener('click', async function() {
     await handleDeleteEntry(entry.id);
 });
+
+// Add this function to scripts/timetable.js
+async function ensureJsPdfLoaded() {
+  if (typeof window.jspdf === 'undefined') {
+    window.jspdf = window.jspdf || {};
+    if (typeof jsPDF !== 'undefined') {
+      window.jspdf.jsPDF = jsPDF;
+    }
+  }
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    throw new Error("jsPDF library not loaded");
+  }
+  return Promise.resolve();
+}

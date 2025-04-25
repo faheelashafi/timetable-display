@@ -196,14 +196,35 @@
     </div>
 
     <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
         import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-        const db = getFirestore();
+        
+        // Your firebase config
+        const firebaseConfig = {
+          apiKey: "AIzaSyB6PZysrQMckTjMuBVv0FohIaI9FJIrhLQ",
+          authDomain: "timetable-c8.firebaseapp.com",
+          projectId: "timetable-c8",
+          storageBucket: "timetable-c8.appspot.com",
+          messagingSenderId: "58609356223",
+          appId: "1:58609356223:web:c7a7f6014324f05605a50a",
+          measurementId: "G-DFEDHHHV88"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
         async function loadAndRenderTimetable() {
-            const querySnapshot = await getDocs(collection(db, "timetableEntries"));
-            const entries = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            window.timetableEntries = entries;
-            renderTimetable(entries);
+            try {
+                const querySnapshot = await getDocs(collection(db, "timetableEntries"));
+                const entries = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                window.timetableEntries = entries;
+                renderTimetable(entries);
+            } catch (error) {
+                console.error("Error loading timetable:", error);
+                // If there's an error, render an empty grid
+                renderEmptyTimetableGrid();
+            }
         }
 
         document.addEventListener('DOMContentLoaded', loadAndRenderTimetable);
