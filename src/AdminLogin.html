@@ -387,7 +387,7 @@
                     localStorage.setItem('rememberedUser', username);
                 }
                 
-                console.log("Login successful. Role: admin");
+                //console.log("Login successful. Role: admin");
                 window.location.href = 'AdminPanel.html';
             } catch (error) {
                 alert(error.message);
@@ -437,18 +437,18 @@
                 // Complete implementation of path testing function
                 function tryNextPath(index) {
                     if (index >= possiblePaths.length) {
-                        console.error('Failed to load logo after trying all paths');
+                        //console.error('Failed to load logo after trying all paths');
                         createPlaceholderLogo();
                         return;
                     }
                     
                     window.logoTestImg.onload = function() {
-                        console.log('Logo loaded successfully with path:', possiblePaths[index]);
+                        //console.log('Logo loaded successfully with path:', possiblePaths[index]);
                         logoImg.src = possiblePaths[index];
                     };
                     
                     window.logoTestImg.onerror = function() {
-                        console.log('Failed to load logo with path:', possiblePaths[index]);
+                        //console.log('Failed to load logo with path:', possiblePaths[index]);
                         tryNextPath(index + 1);
                     };
                     
@@ -457,7 +457,7 @@
                 
                 // Create SVG placeholder logo function
                 function createPlaceholderLogo() {
-                    console.log('Creating SVG placeholder logo');
+                    //console.log('Creating SVG placeholder logo');
                     logoImg.style.display = 'none';
                     const svgLogo = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                     svgLogo.setAttribute('width', '60');

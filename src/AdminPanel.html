@@ -790,228 +790,70 @@
     </div>
 
     <script type="module">
-        // Import Firestore functions
-        import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-
-        // Your Firebase config (replace with your actual config if needed)
-        const firebaseConfig = {
-            apiKey: "AIzaSyB6PZysrQMckTjMuBVv0FohIaI9FJIrhLQ",
-            authDomain: "timetable-c8.firebaseapp.com",
-            projectId: "timetable-c8",
-            storageBucket: "timetable-c8.appspot.com",
-            messagingSenderId: "58609356223",
-            appId: "1:58609356223:web:c7a7f6014324f05605a50a",
-            measurementId: "G-DFEDHHHV88"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Timetable entry Firestore helpers
-        async function addTimetableEntry(entry) {
-            await addDoc(collection(db, "timetableEntries"), entry);
-        }
-        async function getAllTimetableEntries() {
-            const querySnapshot = await getDocs(collection(db, "timetableEntries"));
-            return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        }
-        async function deleteTimetableEntry(id) {
-            await deleteDoc(doc(db, "timetableEntries", id));
-        }
-        async function deleteAllEntries() {
-            const entries = await getAllTimetableEntries();
-            for (const entry of entries) {
-                await deleteTimetableEntry(entry.id);
-            }
-            await loadAndDisplayEntries();
-        }
-
-        // Load and display entries in admin panel
-        let timetableEntries = [];
-        async function loadAndDisplayEntries() {
-            timetableEntries = await getAllTimetableEntries();
-            window.timetableEntries = timetableEntries;
-            displayEntriesInAdmin();
-            updateStats();
-        }
-
-        // Display entries in admin panel
-        function displayEntriesInAdmin() {
-            const entriesList = document.getElementById('entriesList');
-            if (!entriesList) return;
-            entriesList.innerHTML = '';
-            if (window.timetableEntries.length === 0) {
-                const row = document.createElement('tr');
-                const cell = document.createElement('td');
-                cell.colSpan = 5;
-                cell.textContent = 'No entries yet. Add some entries above.';
-                cell.style.textAlign = 'center';
-                cell.style.padding = '20px';
-                row.appendChild(cell);
-                entriesList.appendChild(row);
-                return;
-            }
-            // Sort entries by day and session
-            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-            const sortedEntries = [...window.timetableEntries].sort((a, b) => {
-                const dayComparison = days.indexOf(a.day) - days.indexOf(b.day);
-                if (dayComparison !== 0) return dayComparison;
-                return a.session.toString().localeCompare(b.session.toString());
+        import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        
+        console.log("AdminPanel.html: Starting Firebase initialization...");
+        
+        try {
+            // Set up Firebase with proper logging
+            const db = window.setupFirebase({
+                initializeApp,
+                getFirestore: firestore.getFirestore,
+                collection: firestore.collection,
+                getDocs: firestore.getDocs,
+                addDoc: firestore.addDoc,
+                setDoc: firestore.setDoc,
+                doc: firestore.doc,
+                deleteDoc: firestore.deleteDoc,
+                getDoc: firestore.getDoc,
+                updateDoc: firestore.updateDoc,
+                arrayUnion: firestore.arrayUnion,
+                arrayRemove: firestore.arrayRemove
             });
-            sortedEntries.forEach(entry => {
-                const row = document.createElement('tr');
-                const dayCell = document.createElement('td');
-                dayCell.textContent = entry.day;
-                const sessionCell = document.createElement('td');
-                sessionCell.textContent = entry.session;
-                const courseCell = document.createElement('td');
-                courseCell.textContent = entry.courseName;
-                const timeCell = document.createElement('td');
-                timeCell.textContent = `${entry.startTime}-${entry.endTime}`;
-                const actionsCell = document.createElement('td');
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn danger small';
-                deleteBtn.textContent = 'Delete';
-                deleteBtn.addEventListener('click', async function() {
-                    await deleteTimetableEntry(entry.id);
-                    await loadAndDisplayEntries();
-                });
-                actionsCell.appendChild(deleteBtn);
-                row.appendChild(dayCell);
-                row.appendChild(sessionCell);
-                row.appendChild(courseCell);
-                row.appendChild(timeCell);
-                row.appendChild(actionsCell);
-                entriesList.appendChild(row);
-            });
-        }
 
-        // Update statistics
-        function updateStats() {
-            document.getElementById('totalEntries').textContent = window.timetableEntries.length;
-            const uniqueSessions = [...new Set(window.timetableEntries.map(entry => entry.session))].length;
-            document.getElementById('activeSessions').textContent = uniqueSessions;
-            const uniqueCourses = [...new Set(window.timetableEntries.map(entry => entry.courseCode))].length;
-            document.getElementById('totalCourses').textContent = uniqueCourses;
-            const uniqueTeachers = [...new Set(window.timetableEntries.filter(entry => entry.teacherName).map(entry => entry.teacherName))].length;
-            document.getElementById('totalTeachers').textContent = uniqueTeachers;
-        }
-
-        // Session dropdown initialization (unchanged)
-        function autoUpdateSessionOptions() {
-            const sessionDropdown = document.getElementById('session');
-            if (!sessionDropdown) return;
-            sessionDropdown.innerHTML = '';
-            const options = [
-                { value: '2021', text: '2021' },
-                { value: '2022', text: '2022' },
-                { value: '2023', text: '2023' },
-                { value: '2024', text: '2024' }
-            ];
-            options.forEach(option => {
-                const opt = document.createElement('option');
-                opt.value = option.value;
-                opt.textContent = option.text;
-                sessionDropdown.appendChild(opt);
-            });
-            if (sessionDropdown.options.length > 0) {
-                sessionDropdown.selectedIndex = 0;
-            }
-        }
-
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', function() {
-            loadAndDisplayEntries();
-            autoUpdateSessionOptions();
-
-            // Form submission handler
-            const timetableForm = document.getElementById('timetableForm');
-            if (timetableForm) {
-                timetableForm.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    const courseCode = document.getElementById('courseCode').value.trim();
-                    const courseName = document.getElementById('courseName').value.trim();
-                    const creditHours = document.getElementById('creditHours').value.trim();
-                    const venue = document.getElementById('venue').value.trim();
-                    const teacherName = document.getElementById('teacherName').value.trim();
-                    const session = document.getElementById('session').value;
-                    const startTime = document.getElementById('startTime').value;
-                    const endTime = document.getElementById('endTime').value;
-                    const isLab = document.getElementById('isLab').checked;
-                    const selectedDays = [];
-                    document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
-                        selectedDays.push(checkbox.value);
+            // Initialize the application with better sequence
+            if (db) {
+                console.log("AdminPanel.html: Firebase DB initialized successfully");
+                // Initialize immediately if database is ready
+                window.ensureCollectionsExist()
+                    .then(() => {
+                        console.log("Collections verified, initializing application");
+                        window.initializeApplication();
+                        window.initializeSessionDropdown();
+                    })
+                    .catch(error => {
+                        console.error("Collection initialization error:", error);
+                        // Try to initialize anyway
+                        window.initializeApplication();
+                        window.initializeSessionDropdown();
                     });
-                    if (!courseCode || !courseName || !creditHours || !venue || !startTime || !endTime) {
-                        alert('Please fill in all required fields');
-                        return;
+            } else {
+                // If db isn't immediately ready, wait a bit
+                console.log("AdminPanel.html: Waiting for Firebase to initialize...");
+                setTimeout(() => {
+                    if (window.db) {
+                        console.log("AdminPanel.html: Firebase DB initialized after delay");
+                        window.ensureCollectionsExist()
+                            .then(() => {
+                                window.initializeApplication();
+                                window.initializeSessionDropdown();
+                            })
+                            .catch(error => {
+                                console.error("Collection initialization error:", error);
+                                window.initializeApplication();
+                                window.initializeSessionDropdown();
+                            });
+                    } else {
+                        console.error("Firebase database still not initialized after delay");
+                        alert("Could not connect to the database. Please check your internet connection and try again.");
                     }
-                    if (selectedDays.length === 0) {
-                        alert('Please select at least one day');
-                        return;
-                    }
-                    if (startTime >= endTime) {
-                        alert('End time must be after start time');
-                        return;
-                    }
-                    let entryCount = 0;
-                    for (const day of selectedDays) {
-                        const entry = {
-                            day,
-                            session,
-                            courseCode,
-                            courseName,
-                            creditHours,
-                            teacherName,
-                            venue,
-                            startTime,
-                            endTime,
-                            isLab
-                        };
-                        await addTimetableEntry(entry);
-                        entryCount++;
-                    }
-                    await loadAndDisplayEntries();
-                    timetableForm.reset();
-                    alert(`Successfully added ${entryCount} entries to the timetable.`);
-                });
+                }, 2000); // Longer wait time
             }
-
-            // Display existing entries
-            loadAndDisplayEntries();
-
-            // Set up data management (unchanged)
-            setupDataListHandlers();
-            dataManager.importFromEntries();
-            populateDataLists();
-
-            // Set up event handlers
-            document.getElementById('logoutBtn')?.addEventListener('click', function() {
-                sessionStorage.removeItem('authToken');
-                sessionStorage.removeItem('loggedIn');
-                sessionStorage.removeItem('currentUser');
-                window.location.href = 'AdminLogin.html';
-            });
-
-            document.getElementById('generatePdf')?.addEventListener('click', async function() {
-                try {
-                    await ensureJsPdfLoaded();
-                    generatePDF();
-                } catch (error) {
-                    alert("PDF generation failed: " + error.message);
-                }
-            });
-            document.getElementById('viewStoredData')?.addEventListener('click', displayStoredData);
-            document.getElementById('clearAllEntries')?.addEventListener('click', async function() {
-                if (confirm('Are you sure you want to delete all entries? This cannot be undone!')) {
-                    await deleteAllEntries();
-                }
-            });
-
-            // No more localStorage polling for timetable entries!
-        });
-
-        // Remove setupDynamicUpdates for timetable entries (not needed with Firestore)
+        } catch(error) {
+            console.error("Firebase initialization error:", error);
+            alert("Failed to initialize application: " + error.message);
+        }
     </script>
 </body>
 </html>

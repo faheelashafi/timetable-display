@@ -3,181 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timetable Display</title>
+    <title>University Timetable</title>
     <link rel="stylesheet" href="../styles/styles.css">
+    <!-- Load timetable.js first and ensure it's not type="module" -->
     <script src="../scripts/timetable.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
-    <style>
-        /* Update these styles to use more vertical space */
-        body.timetable-view {
-            height: 100vh;
-            overflow: hidden;
-            margin: 0;
-            padding: 0;
-        }
-        
-        .timetable-header {
-            text-align: center;
-            margin-bottom: 0.1vh; /* Reduced further */
-            padding: 0.2vh; /* Reduced further */
-        }
-        
-        .timetable-header h1 {
-            font-size: 2.2vh; /* Slightly smaller */
-            margin: 0;
-        }
-        
-        .timetable-header h3 {
-            font-size: 1.6vh; /* Slightly smaller */
-            margin: 0.2vh 0; /* Reduced */
-        }
-        
-        /* Increase table container height to use more vertical space */
-        .table-container {
-            height: 96vh; /* Increased from 92vh to use more space */
-            width: 98%;
-            margin: 0 auto;
-            padding: 0;
-            box-shadow: none;
-            border-spacing: 0; /* Remove any extra spacing */
-        }
-        
-        /* Remove spacing between cells */
-        .table {
-            width: 100%;
-            height: 100%;
-            font-size: 1.8vh;
-            table-layout: fixed;
-            border-collapse: collapse; /* This removes spacing between cells */
-            border-spacing: 0; /* Ensure no space between borders */
-        }
-        
-        .table th, .table td {
-            padding: 0.2vh 0.2vw; /* Reduced padding even further */
-            min-width: auto;
-            vertical-align: middle;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            border: 1px solid #ccc; /* Consistent border */
-        }
-        
-        /* Further reduce day column width */
-        .table th:first-child,
-        .table .day-cell {
-            width: 5.5vw; /* Even smaller width */
-        }
-        
-        /* Further reduce session column width */
-        .table th:nth-child(2),
-        .table .session-cell {
-            width: 4vw; /* Even smaller width */
-        }
-
-        /* Make time slot headers more compact */
-        .table th:not(:first-child):not(:nth-child(2)) {
-            font-size: 1.5vh;
-            padding: 0.3vh 0.15vw;
-        }
-        
-        /* Optimize course cells */
-        .table .course-cell {
-            padding: 0.2vh 0.1vw;
-            background-color: #f3eaff; /* Light purple background */
-        }
-        
-        /* Make sure content is still readable */
-        .table .course-cell div {
-            font-size: 1.8vh;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        /* Add tooltip for hover to see full content */
-        .table td[title] {
-            cursor: help;
-        }
-        
-        /* Ensure cells fit together tightly */
-        .table tr {
-            padding: 0;
-            margin: 0;
-        }
-        
-        /* Pastel backgrounds for course entries (slots) */
-        .table td.course-cell {
-            background-color: #e3f2fd !important; /* Light blue pastel */
-            color: #222;
-            font-weight: 600;
-            border-radius: 0;
-            border: 1px solid #d1c4e9;
-            padding: 0.2vh 0.1vw;
-        }
-
-        /* Alternate pastel backgrounds for better distinction */
-        .table tr:nth-child(even) td.course-cell {
-            background-color: #fffde7 !important; /* Light yellow pastel */
-        }
-        .table tr:nth-child(odd) td.course-cell {
-            background-color: #e3f2fd !important; /* Light blue pastel */
-        }
-
-        /* 4-color pastel zebra striping for timetable slots */
-        .table tr:nth-child(4n+1) td.course-cell {
-            background-color: #e3f2fd !important; /* Light blue */
-        }
-        .table tr:nth-child(4n+2) td.course-cell {
-            background-color: #e8f5e9 !important; /* Light green */
-        }
-        .table tr:nth-child(4n+3) td.course-cell {
-            background-color: #fffde7 !important; /* Light yellow */
-        }
-        .table tr:nth-child(4n+4) td.course-cell {
-            background-color: #fce4ec !important; /* Light pink */
-        }
-
-        /* Lab highlight */
-        .table td.course-cell.lab-course {
-            background-color: #ffe0b2 !important; /* Light orange pastel for labs */
-            color: #795548;
-            font-style: italic;
-        }
-        
-        /* Media query for very wide screens */
-        @media (min-aspect-ratio: 16/9) {
-            .table-container {
-                width: 98%; /* Increased to use more space */
-                max-width: 1600px; /* Increased from 1400px */
-            }
-        }
-        
-        /* Media query for smaller screens */
-        @media (max-height: 600px) {
-            .table {
-                font-size: 1.6vh;
-            }
-            
-            .table th, .table td {
-                padding: 0.4vh 0.3vw;
-            }
-            
-            .timetable-header h1 {
-                font-size: 2.2vh;
-            }
-            
-            .timetable-header h3 {
-                font-size: 1.6vh;
-            }
-        }
-    </style>
 </head>
 <body class="timetable-view">
-    <div class="timetable-header">
-        <h1>Time Table</h1>
-        <h3>DEPT. OF CS & IT - University of Chakwal</h3>
+    <div class="header">
+        <div class="compact-header">
+            <h1>Time Table</h1>
+            <h2>DEPT. OF CS &amp; IT - University of Chakwal</h2>
+        </div>
     </div>
 
     <div class="table-container">
@@ -195,39 +31,52 @@
         </table>
     </div>
 
+    <!-- CHANGED: Fixed module ordering -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         
-        // Your firebase config
-        const firebaseConfig = {
-          apiKey: "AIzaSyB6PZysrQMckTjMuBVv0FohIaI9FJIrhLQ",
-          authDomain: "timetable-c8.firebaseapp.com",
-          projectId: "timetable-c8",
-          storageBucket: "timetable-c8.appspot.com",
-          messagingSenderId: "58609356223",
-          appId: "1:58609356223:web:c7a7f6014324f05605a50a",
-          measurementId: "G-DFEDHHHV88"
-        };
-        
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        async function loadAndRenderTimetable() {
+        // Wait for DOM content to be loaded
+        document.addEventListener('DOMContentLoaded', function() {
             try {
-                const querySnapshot = await getDocs(collection(db, "timetableEntries"));
-                const entries = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                window.timetableEntries = entries;
-                renderTimetable(entries);
-            } catch (error) {
-                console.error("Error loading timetable:", error);
-                // If there's an error, render an empty grid
-                renderEmptyTimetableGrid();
-            }
-        }
+                // Now we can access setupFirebase
+                window.setupFirebase({
+                    initializeApp,
+                    getFirestore: firestore.getFirestore,
+                    collection: firestore.collection,
+                    getDocs: firestore.getDocs,
+                    addDoc: firestore.addDoc,
+                    setDoc: firestore.setDoc,
+                    doc: firestore.doc,
+                    deleteDoc: firestore.deleteDoc,
+                    getDoc: firestore.getDoc,
+                    updateDoc: firestore.updateDoc,
+                    arrayUnion: firestore.arrayUnion,
+                    arrayRemove: firestore.arrayRemove
+                });
 
-        document.addEventListener('DOMContentLoaded', loadAndRenderTimetable);
+                // Add this line AFTER the setupFirebase function definition, not inside it
+            
+                
+                // Render empty grid immediately 
+                renderEmptyTimetableGrid();
+                
+                // Load entries after Firebase is initialized
+                setTimeout(() => {
+                    loadAndDisplayEntries();
+                }, 500);
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                renderEmptyTimetableGrid();
+                
+                // Show error to user
+                const errorEl = document.createElement('div');
+                errorEl.className = 'alert alert-danger';
+                errorEl.style.cssText = 'padding:15px;margin:15px;background:#f8d7da;color:#721c24;border-radius:4px;';
+                errorEl.textContent = "Could not load timetable data. Please try again later.";
+                document.body.prepend(errorEl);
+            }
+        });
     </script>
 </body>
 </html>

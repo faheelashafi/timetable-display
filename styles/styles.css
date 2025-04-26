@@ -85,6 +85,53 @@ h1 {
     font-size: 2em;
 }
 
+.header {
+    background-color: #f8f9fa;
+    padding: 15px 0;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.title-container h1 {
+    font-size: 24px;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.title-container h2 {
+    font-size: 16px;
+    font-weight: normal;
+    color: #6c757d;
+    margin: 0;
+}
+
+/* Compact header for timetable display */
+.compact-header {
+    background-color: #f8f9fa;
+    padding: 5px 0;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 5px;
+    text-align: center;
+}
+
+.compact-header h1 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
+    padding: 0;
+    border: none; /* Remove the border from h1 */
+    color: #333;
+}
+
+.compact-header h2 {
+    font-size: 14px;
+    font-weight: normal;
+    color: #6c757d;
+    margin: 0;
+}
+
 /* Login Form Styles */
 .login-container {
     max-width: 450px;
@@ -206,10 +253,8 @@ button.small {
 
 /* Specific styles for the timetable display view */
 .timetable-view .table-container {
-  height: 85vh;
-  margin: 0 auto;
-  padding: 0;
-  box-shadow: none;
+    height: calc(100vh - 70px); /* Adjust for smaller header */
+    overflow: auto;
 }
 
 .timetable-view .timetable-header {
