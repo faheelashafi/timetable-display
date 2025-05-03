@@ -474,22 +474,44 @@ async function deleteTimetableEntry(id) {
     }
 }
 
-// Delete all entries
+// Improved deleteAllEntries function with batch processing
 async function deleteAllEntries() {
     if (!confirm('Are you sure you want to delete all entries? This cannot be undone!')) {
         return;
     }
     
+    const loadingEl = showLoading("Deleting all entries...");
+    
     try {
         const entries = await getAllTimetableEntries();
-        for (const entry of entries) {
-            await deleteTimetableEntry(entry.id);
+        if (entries.length === 0) {
+            alert("No entries to delete.");
+            hideLoading();
+            return;
         }
+        
+        // Use Promise.all for parallel deletion instead of sequential
+        const deletionPromises = entries.map(entry => {
+            return deleteDoc(doc(window.db, "timetableEntries", entry.id))
+                .catch(e => console.error(`Failed to delete entry ${entry.id}:`, e));
+        });
+        
+        await Promise.all(deletionPromises);
+        console.log(`Successfully deleted ${entries.length} entries`);
+        
+        // Clear local cache
+        window.timetableEntries = [];
+        
+        // Update UI
         await loadAndDisplayEntries();
+        alert(`Successfully deleted ${entries.length} entries`);
         return true;
     } catch (error) {
-        handleError(error, "deleteAllEntries");
+        console.error("Error in bulk delete:", error);
+        alert(`Error deleting entries: ${error.message}`);
         return false;
+    } finally {
+        hideLoading();
     }
 }
 
@@ -643,10 +665,9 @@ async function displayEntriesInAdmin() {
     }
 }
 
-// Fixed generatePDF function - replace the existing function with this one
+// Fixed generatePDF function with better page layout
 function generatePDF() {
     try {
-        // Check if jsPDF is loaded
         ensureJsPdfLoaded().then(() => {
             const { jsPDF } = window.jspdf;
             if (!jsPDF) {
@@ -654,66 +675,36 @@ function generatePDF() {
                 return;
             }
             
+            // Create landscape PDF
             const doc = new jsPDF('l', 'mm', 'a4');
+            const pageWidth = doc.internal.pageSize.width;
+            const pageHeight = doc.internal.pageSize.height;
+            const margin = 14;
+            
+            // Title section
             doc.setFontSize(16);
             doc.setFont('helvetica', 'bold');
-            doc.text('Time Table Fall Semester 2024', doc.internal.pageSize.width / 2, 15, { align: 'center' });
+            doc.text('Time Table Fall Semester 2024', pageWidth / 2, 15, { align: 'center' });
             doc.setFontSize(14);
             doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
-                doc.internal.pageSize.width / 2, 22, { align: 'center' });
+                pageWidth / 2, 22, { align: 'center' });
             doc.setFontSize(12);
-            doc.text('University of Chakwal', doc.internal.pageSize.width / 2, 28, { align: 'center' });
+            doc.text('University of Chakwal', pageWidth / 2, 28, { align: 'center' });
             
+            // Get all entries and generate timetable
             const entries = window.timetableEntries || [];
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const timeSlots = getAllTimeSlots(entries); // <-- Use dynamic slots!
+            const timeSlots = getAllTimeSlots(entries);
             const headers = ['Day', 'Session', ...timeSlots];
-            const tableData = [];
             
-            days.forEach(day => {
-                const dayEntries = timetableEntries.filter(entry => entry.day === day);
-                if (dayEntries.length === 0) return;
-                
-                const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-                daySessions.forEach((session, index) => {
-                    const row = [];
-                    row.push(index === 0 ? day : '');
-                    row.push(session);
-                    const sessionEntries = dayEntries.filter(entry => entry.session.toString() === session.toString());
-                    
-                    let skipSlots = 0;
-                    for (let i = 0; i < timeSlots.length; i++) {
-                        if (skipSlots > 0) {
-                            skipSlots--;
-                            continue;
-                        }
-                        
-                        const slotParts = timeSlots[i].split('-');
-                        const slotStart = slotParts[0];
-                        const slotEnd = slotParts[1];
-                        
-                        const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
-                        
-                        if (entry) {
-                            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                            const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
-                            const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                            row.push(cellContent);
-                            skipSlots = spanCount - 1;
-                        } else {
-                            row.push('');
-                        }
-                    }
-                    tableData.push(row);
-                });
-            });
+            // Generate main timetable (all sessions together)
+            let currentY = 35; // Starting Y position after the header
             
-            const startY = 35;
+            // Main timetable
             doc.autoTable({
                 head: [headers],
-                body: tableData,
-                startY: startY,
+                body: generateMainTableData(entries, days, timeSlots),
+                startY: currentY,
                 styles: {
                     fontSize: 8,
                     cellPadding: 2
@@ -722,100 +713,39 @@ function generatePDF() {
                     0: { cellWidth: 20 },
                     1: { cellWidth: 15 }
                 },
-                didParseCell: function(data) {
-                    if (data.section === 'body') {
-                        const session = data.row.cells[1].text;
-                        if (data.column.index < 2) {
-                            if (data.column.index === 0) {
-                                data.cell.styles.fillColor = [73, 124, 15];
-                                data.cell.styles.textColor = [255, 255, 255];
-                                data.cell.styles.fontStyle = 'bold';
-                            } else {
-                                data.cell.styles.fillColor = [240, 240, 240];
-                            }
-                        } else if (data.row.cells[1].text) {
-                            if (data.row.cells[data.column.index].text) {
-                                const isLab = data.row.cells[data.column.index].text.includes('Lab');
-                                data.cell.styles.fillColor = [240, 240, 240];
-                                if (isLab) {
-                                    data.cell.styles.fillColor = [255, 243, 205];
-                                } else {
-                                    switch(session) {
-                                        case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
-                                        case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
-                                        case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
-                                        case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
-                                    }
-                                }
-                            } else {
-                                switch(session) {
-                                    case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
-                                    case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
-                                    case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
-                                    case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
-                                }
-                            }
-                        }
-                    } else if (data.section === 'head') {
-                        data.cell.styles.fillColor = [73, 124, 15];
-                        data.cell.styles.textColor = [255, 255, 255];
-                        data.cell.styles.fontStyle = 'bold';
-                    }
-                }
+                didParseCell: styleTableCells,
+                margin: { left: margin, right: margin }
             });
             
-            const uniqueSessions = [...new Set(timetableEntries.map(entry => entry.session))].sort();
+            currentY = doc.lastAutoTable.finalY + 15;
+            
+            // Generate course details tables (one table per session on the same page if possible)
+            const uniqueSessions = [...new Set(entries.map(entry => entry.session))].sort();
             uniqueSessions.forEach((session, index) => {
-                if (index > 0) {
+                const sessionEntries = entries.filter(entry => entry.session.toString() === session.toString());
+                const sessionYear = parseInt(session);
+                const semesterNum = getSemesterNumber(sessionYear);
+                
+                // Check if we need a new page
+                const estimatedTableHeight = 15 + (Object.keys(getUniqueCoursesForSession(sessionEntries)).length * 10);
+                if (currentY + estimatedTableHeight > pageHeight - 20) {
                     doc.addPage();
-                } else if (doc.lastAutoTable) {
-                    doc.lastAutoTable.finalY += 15;
+                    currentY = 15;
                 }
                 
-                const sessionYear = parseInt(session);
-                const currentYear = new Date().getFullYear();
-                let semesterNum;
-                const currentMonth = new Date().getMonth();
-                const isFall = currentMonth >= 6 && currentMonth <= 11;
-                if (isFall) {
-                    const yearDiff = currentYear - sessionYear;
-                    if (yearDiff === 0) semesterNum = "1st";
-                    else if (yearDiff === 1) semesterNum = "3rd";
-                    else if (yearDiff === 2) semesterNum = "5th";
-                    else if (yearDiff === 3) semesterNum = "7th";
-                    else semesterNum = "";
-                } else {
-                    const yearDiff = (currentYear-1) - sessionYear;
-                    if (yearDiff === 0) semesterNum = "2nd";
-                    else if (yearDiff === 1) semesterNum = "4th";
-                    else if (yearDiff === 2) semesterNum = "6th";
-                    else if (yearDiff === 3) semesterNum = "8th";
-                    else semesterNum = "";
-                }
+                // Session heading
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(12);
                 const sessionTitle = `Session ${session} (${semesterNum} Semester)`;
-                doc.text(sessionTitle, 14, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : 120);
+                doc.text(sessionTitle, margin, currentY);
                 
-                const sessionEntries = timetableEntries.filter(entry => entry.session.toString() === session.toString());
-                const uniqueCourses = {};
-                sessionEntries.forEach(entry => {
-                    if (!uniqueCourses[entry.courseCode]) {
-                        uniqueCourses[entry.courseCode] = entry;
-                    }
-                });
-                const courseData = Object.values(uniqueCourses).map(course => [
-                    course.courseCode,
-                    course.courseName,
-                    course.creditHours,
-                    course.teacherName || '',
-                    course.venue
-                ]);
+                // Course details table for this session
+                const courseData = generateCourseTableData(sessionEntries);
                 if (courseData.length > 0) {
                     doc.autoTable({
                         head: [['Course Code', 'Course Name', 'Credit Hrs', 'Teacher Name', 'Venue']],
                         body: courseData,
-                        startY: doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 125,
+                        startY: currentY + 5,
                         styles: {
                             fontSize: 9,
                             cellPadding: 3
@@ -828,23 +758,22 @@ function generatePDF() {
                         alternateRowStyles: {
                             fillColor: [248, 248, 248]
                         },
-                        margin: { left: 14, right: 14 }
+                        margin: { left: margin, right: margin }
                     });
+                    
+                    currentY = doc.lastAutoTable.finalY + 10;
                 }
             });
             
+            // Add page numbers and generation date to all pages
             const totalPages = doc.internal.getNumberOfPages();
             for (let i = 1; i <= totalPages; i++) {
                 doc.setPage(i);
                 const today = new Date().toLocaleDateString();
                 doc.setFontSize(8);
                 doc.setTextColor(100);
-                doc.text(`Generated on: ${today}`, 14, doc.internal.pageSize.height - 10);
-                doc.text(
-                    `Page ${i} of ${totalPages}`,
-                    doc.internal.pageSize.width - 25,
-                    doc.internal.pageSize.height - 10
-                );
+                doc.text(`Generated on: ${today}`, margin, pageHeight - 10);
+                doc.text(`Page ${i} of ${totalPages}`, pageWidth - 25, pageHeight - 10);
             }
             
             doc.save('timetable.pdf');
@@ -853,6 +782,141 @@ function generatePDF() {
         });
     } catch (error) {
         handleError(error, "generatePDF");
+    }
+}
+
+// Helper function to generate main timetable data
+function generateMainTableData(entries, days, timeSlots) {
+    const tableData = [];
+    days.forEach(day => {
+        const dayEntries = entries.filter(entry => entry.day === day);
+        if (dayEntries.length === 0) return;
+        
+        const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
+        daySessions.forEach((session, index) => {
+            const row = [];
+            row.push(index === 0 ? day : '');
+            row.push(session);
+            
+            const sessionEntries = dayEntries.filter(entry => 
+                entry.session.toString() === session.toString());
+            
+            let skipSlots = 0;
+            for (let i = 0; i < timeSlots.length; i++) {
+                if (skipSlots > 0) {
+                    skipSlots--;
+                    continue;
+                }
+                
+                const slotParts = timeSlots[i].split('-');
+                const slotStart = slotParts[0];
+                const slotEnd = slotParts[1];
+                
+                const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
+                
+                if (entry) {
+                    const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                    const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                    const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
+                    const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
+                    row.push(cellContent);
+                    skipSlots = spanCount - 1;
+                } else {
+                    row.push('');
+                }
+            }
+            tableData.push(row);
+        });
+    });
+    return tableData;
+}
+
+// Helper function to get unique courses for a session
+function getUniqueCoursesForSession(sessionEntries) {
+    const uniqueCourses = {};
+    sessionEntries.forEach(entry => {
+        if (!uniqueCourses[entry.courseCode]) {
+            uniqueCourses[entry.courseCode] = entry;
+        }
+    });
+    return uniqueCourses;
+}
+
+// Helper function to generate course table data
+function generateCourseTableData(sessionEntries) {
+    const uniqueCourses = getUniqueCoursesForSession(sessionEntries);
+    return Object.values(uniqueCourses).map(course => [
+        course.courseCode,
+        course.courseName,
+        course.creditHours,
+        course.teacherName || '',
+        course.venue
+    ]);
+}
+
+// Helper function to style table cells
+function styleTableCells(data) {
+    if (data.section === 'body') {
+        const session = data.row.cells[1].text;
+        if (data.column.index < 2) {
+            if (data.column.index === 0) {
+                data.cell.styles.fillColor = [73, 124, 15];
+                data.cell.styles.textColor = [255, 255, 255];
+                data.cell.styles.fontStyle = 'bold';
+            } else {
+                data.cell.styles.fillColor = [240, 240, 240];
+            }
+        } else if (data.row.cells[1].text) {
+            if (data.row.cells[data.column.index].text) {
+                const isLab = data.row.cells[data.column.index].text.includes('Lab');
+                if (isLab) {
+                    data.cell.styles.fillColor = [255, 243, 205];
+                } else {
+                    switch(session) {
+                        case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
+                        case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
+                        case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
+                        case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
+                        default: data.cell.styles.fillColor = [240, 240, 240];
+                    }
+                }
+            } else {
+                switch(session) {
+                    case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
+                    case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
+                    case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
+                    case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
+                    default: data.cell.styles.fillColor = [255, 255, 255];
+                }
+            }
+        }
+    } else if (data.section === 'head') {
+        data.cell.styles.fillColor = [73, 124, 15];
+        data.cell.styles.textColor = [255, 255, 255];
+        data.cell.styles.fontStyle = 'bold';
+    }
+}
+
+// Helper function to determine semester number based on session year
+function getSemesterNumber(sessionYear) {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    const isFall = currentMonth >= 6 && currentMonth <= 11;
+    
+    if (isFall) {
+        const yearDiff = currentYear - sessionYear;
+        if (yearDiff === 0) return "1st";
+        else if (yearDiff === 1) return "3rd";
+        else if (yearDiff === 2) return "5th";
+        else if (yearDiff === 3) return "7th";
+        else return "";
+    } else {
+        const yearDiff = (currentYear-1) - sessionYear;
+        if (yearDiff === 0) return "2nd";
+        else if (yearDiff === 1) return "4th";
+        else if (yearDiff === 2) return "6th";
+        else if (yearDiff === 3) return "8th";
+        else return "";
     }
 }
 
