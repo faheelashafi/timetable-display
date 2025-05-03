@@ -978,6 +978,14 @@ function initializeApplication() {
         loadAndDisplayEntries();
       }
     }, 300);
+
+    // Initialize time range inputs with stored values
+    const timetableStartTime = document.getElementById('timetableStartTime');
+    const timetableEndTime = document.getElementById('timetableEndTime');
+    if (timetableStartTime && timetableEndTime) {
+        timetableStartTime.value = localStorage.getItem('timetableStartTime') || '08:00';
+        timetableEndTime.value = localStorage.getItem('timetableEndTime') || '13:00';
+    }
   } catch (error) {
     handleError(error, "initializeApplication", false);
     if (loadingElement) hideLoading();
@@ -1023,6 +1031,29 @@ function setupEventHandlers() {
   const timetableForm = document.getElementById('timetableForm');
   if (timetableForm) {
     timetableForm.addEventListener('submit', handleFormSubmit);
+  }
+
+  const updateTimeRangeBtn = document.getElementById('updateTimeRange');
+  if (updateTimeRangeBtn) {
+    updateTimeRangeBtn.addEventListener('click', function() {
+        const startTime = document.getElementById('timetableStartTime').value;
+        const endTime = document.getElementById('timetableEndTime').value;
+        
+        // Validate that end time is after start time
+        if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
+            alert('End time must be after start time');
+            return;
+        }
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('timetableStartTime', startTime);
+        localStorage.setItem('timetableEndTime', endTime);
+        
+        // Refresh the display
+        loadAndDisplayEntries();
+        
+        alert('Time range updated successfully!');
+    });
   }
 }
 
@@ -1375,6 +1406,45 @@ function getHardcodedTimeSlots() {
     return slots;
 }
 
+// Generate dynamic time slots with configurable start and end times
+function getDynamicTimeSlots(startTime = "08:00", endTime = "13:00") {
+    const slots = [];
+    
+    // Validate and normalize input times
+    startTime = normalizeTimeFormat(startTime);
+    endTime = normalizeTimeFormat(endTime);
+    
+    // Convert to minutes for easier calculation
+    let currentMinutes = convertToMinutes(startTime);
+    const endMinutes = convertToMinutes(endTime);
+    
+    // Generate slots in 30 minute increments
+    while (currentMinutes < endMinutes) {
+        // Format current time
+        const currentHour = Math.floor(currentMinutes / 60);
+        const currentMin = currentMinutes % 60;
+        const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMin.toString().padStart(2, '0')}`;
+        
+        // Calculate next slot time (30 minutes later)
+        let nextMinutes = currentMinutes + 30;
+        if (nextMinutes > endMinutes) {
+            nextMinutes = endMinutes; // Ensure we don't go past the end time
+        }
+        
+        const nextHour = Math.floor(nextMinutes / 60);
+        const nextMin = nextMinutes % 60;
+        const nextTimeStr = `${nextHour.toString().padStart(2, '0')}:${nextMin.toString().padStart(2, '0')}`;
+        
+        // Add the slot
+        slots.push(`${currentTimeStr}-${nextTimeStr}`);
+        
+        // Move to next 30-minute mark
+        currentMinutes = nextMinutes;
+    }
+    
+    return slots;
+}
+
 // Update renderTimetable function to add session data attributes and time-slot-end class
 function renderTimetable(entries) {
     const tableBody = document.getElementById('timetableBody');
@@ -1399,8 +1469,10 @@ function renderTimetable(entries) {
         return;
     }
     
-    // Use hardcoded time slots
-    const timeSlots = getHardcodedTimeSlots();
+    // Use dynamic time slots
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
     
     // Add time slots to header without AM/PM format
     if (thead && timeSlots.length > 0) {
@@ -1561,7 +1633,9 @@ function doesEntryFitTimeSlot(entry, slotStart, slotEnd) {
 
 // Also update the getAllTimeSlots function to use hardcoded slots for PDF generation
 function getAllTimeSlots(entries) {
-    return getHardcodedTimeSlots();
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    return getDynamicTimeSlots(startTime, endTime);
 }
 
 function renderHardcodedGrid(showSaturday = false, showSunday = false) {
@@ -1634,8 +1708,10 @@ function renderEmptyTimetableGrid() {
     
     tableBody.innerHTML = '';
 
-    // Get hardcoded time slots
-    const timeSlots = getHardcodedTimeSlots();
+    // Get dynamic time slots
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
     
     // Add time slots to header without AM/PM format
     const thead = table.querySelector('thead');

@@ -700,6 +700,22 @@
                                 Is this a lab class?
                             </label>
                         </div>
+
+                        <div class="form-group">
+                            <label style="font-weight: bold;">Timetable Time Range:</label>
+                            <div class="form-grid">
+                                <div>
+                                    <label for="timetableStartTime">Start Time:</label>
+                                    <input type="time" id="timetableStartTime" value="08:00">
+                                </div>
+                                <div>
+                                    <label for="timetableEndTime">End Time:</label>
+                                    <input type="time" id="timetableEndTime" value="13:00">
+                                </div>
+                                <button type="button" id="updateTimeRange" class="btn success small">Update Display</button>
+                            </div>
+                            <small>Time slots will be divided into 30-minute intervals</small>
+                        </div>
                         
                         <button type="submit" class="btn success" style="padding: 10px 20px;">Add Entry</button>
                     </form>
