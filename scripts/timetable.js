@@ -667,7 +667,7 @@ async function displayEntriesInAdmin() {
     }
 }
 
-// Fixed generatePDF function with better page layout
+// Complete the PDF generation function that was incomplete
 function generatePDF() {
     try {
         ensureJsPdfLoaded().then(() => {
@@ -699,29 +699,43 @@ function generatePDF() {
             const timeSlots = getAllTimeSlots(entries);
             const headers = ['Day', 'Session', ...timeSlots];
             
+            // Calculate column widths to prevent text distortion
+            const timeSlotWidth = Math.max(10, (pageWidth - margin*2 - 35) / timeSlots.length);
+            const columnStyles = {
+                0: { cellWidth: 20 }, // Day column
+                1: { cellWidth: 15 }  // Session column
+            };
+            
+            // Apply consistent width to all timeslot columns
+            for (let i = 2; i < headers.length; i++) {
+                columnStyles[i] = { cellWidth: timeSlotWidth };
+            }
+            
             // Generate main timetable (all sessions together)
             let currentY = 35; // Starting Y position after the header
             
-            // Main timetable
+            // Main timetable with improved cell formatting
             doc.autoTable({
                 head: [headers],
                 body: generateMainTableData(entries, days, timeSlots),
                 startY: currentY,
                 styles: {
                     fontSize: 8,
-                    cellPadding: 2
+                    cellPadding: 2,
+                    overflow: 'linebreak',
+                    halign: 'center',
+                    valign: 'middle',
+                    minCellHeight: 8
                 },
-                columnStyles: {
-                    0: { cellWidth: 20 },
-                    1: { cellWidth: 15 }
-                },
+                columnStyles: columnStyles,
                 didParseCell: styleTableCells,
                 margin: { left: margin, right: margin }
             });
             
+            // Get position after main table
             currentY = doc.lastAutoTable.finalY + 15;
             
-            // Generate course details tables (one table per session on the same page if possible)
+            // Generate course details tables for each session
             const uniqueSessions = [...new Set(entries.map(entry => entry.session))].sort();
             uniqueSessions.forEach((session, index) => {
                 const sessionEntries = entries.filter(entry => entry.session.toString() === session.toString());
@@ -780,10 +794,12 @@ function generatePDF() {
             
             doc.save('timetable.pdf');
         }).catch(error => {
-            handleError(error, "generatePDF");
+            console.error("Error generating PDF:", error);
+            alert("PDF generation failed: " + error.message);
         });
     } catch (error) {
-        handleError(error, "generatePDF");
+        console.error("Error in generatePDF:", error);
+        alert("PDF generation failed: " + error.message);
     }
 }
 
@@ -2113,3 +2129,15 @@ function setupRealtimeUpdates() {
     setTimeout(setupRealtimeUpdates, 2000);
   }
 }
+
+// Make sure the button handlers are properly set up
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("Setting up event handlers on DOM load");
+    setTimeout(setupEventHandlers, 500);
+    
+    // Check again after full page load to be extra safe
+    window.addEventListener('load', function() {
+        console.log("Setting up event handlers on window load");
+        setupEventHandlers();
+    });
+});
