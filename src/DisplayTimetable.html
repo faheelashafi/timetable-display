@@ -34,7 +34,11 @@
         import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         
         document.addEventListener('DOMContentLoaded', function() {
+            console.log("DisplayTimetable initializing...");
             try {
+                // Pass all required Firebase functions
+                window.firestore = firestore; // Make firestore globally available
+                
                 window.setupFirebase({
                     initializeApp,
                     getFirestore: firestore.getFirestore,
@@ -47,12 +51,19 @@
                     getDoc: firestore.getDoc,
                     updateDoc: firestore.updateDoc,
                     arrayUnion: firestore.arrayUnion,
-                    arrayRemove: firestore.arrayRemove
+                    arrayRemove: firestore.arrayRemove,
+                    onSnapshot: firestore.onSnapshot
                 });
                 
+                // Show empty grid while loading
                 renderEmptyTimetableGrid();
-                setTimeout(() => loadAndDisplayEntries(), 500);
+                
+                // Immediate setup with retry mechanism
+                setupRealtimeUpdates();
+                
+                console.log("DisplayTimetable initialization complete");
             } catch (error) {
+                console.error("Error initializing timetable:", error);
                 renderEmptyTimetableGrid();
             }
         });

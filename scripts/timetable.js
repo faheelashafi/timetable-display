@@ -1,6 +1,6 @@
 // Define these functions to be loaded from the HTML modules
 let initializeApp; 
-let getFirestore, collection, getDocs, addDoc, setDoc, doc, deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove;
+let getFirestore, collection, getDocs, addDoc, setDoc, doc, deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot;
 
 // Firebase initialization function
 function setupFirebase(imports) {
@@ -26,7 +26,8 @@ function setupFirebase(imports) {
     updateDoc = imports.updateDoc;
     arrayUnion = imports.arrayUnion;
     arrayRemove = imports.arrayRemove;
-
+    onSnapshot = imports.onSnapshot; // Add this line
+    
     // Initialize Firebase ONCE with console logging
     console.log("Initializing Firebase app...");
     const app = initializeApp(firebaseConfig);
@@ -48,6 +49,7 @@ function setupFirebase(imports) {
     window.updateStats = updateStats;
     window.ensureCollectionsExist = ensureCollectionsExist;
     window.initializeSessionDropdown = initializeSessionDropdown;
+    window.setupRealtimeUpdates = setupRealtimeUpdates; // Export setupRealtimeUpdates to window
     
     console.log("Firebase initialization completed successfully");
     return window.db;
@@ -2000,4 +2002,114 @@ function findEntryForTimeSlot(entries, slotStart, slotEnd) {
   }
   
   return entry;
+}
+
+// Enhanced real-time timetable updates function
+function setupRealtimeUpdates() {
+  try {
+    // Add visual indicator for real-time status
+    let statusIndicator = document.getElementById('realtime-status');
+    if (!statusIndicator && !window.location.href.includes('AdminPanel.html')) {
+      statusIndicator = document.createElement('div');
+      statusIndicator.id = 'realtime-status';
+      statusIndicator.style.cssText = 'position:fixed;bottom:10px;right:10px;padding:5px 10px;font-size:12px;background:rgba(52,168,83,0.8);color:white;border-radius:4px;z-index:1000;';
+      statusIndicator.textContent = 'Connecting...';
+      document.body.appendChild(statusIndicator);
+    }
+    
+    // More robust Firebase initialization check
+    if (!window.db) {
+      console.warn("Firebase not initialized yet, retrying in 500ms");
+      if (statusIndicator) statusIndicator.style.background = 'rgba(234,67,53,0.8)';
+      if (statusIndicator) statusIndicator.textContent = 'Connecting...';
+      
+      // Retry with a shorter interval
+      setTimeout(setupRealtimeUpdates, 500);
+      return;
+    }
+    
+    console.log("Setting up real-time timetable updates");
+    
+    // Only setup the listener once
+    if (window._timetableListener) {
+      console.log("Real-time listener already exists");
+      if (statusIndicator) statusIndicator.textContent = 'Connected';
+      return;
+    }
+    
+    // Import required functions with better error handling
+    if (!firestore || !firestore.onSnapshot) {
+      console.error("Firestore onSnapshot not available");
+      if (statusIndicator) {
+        statusIndicator.style.background = 'rgba(234,67,53,0.8)';
+        statusIndicator.textContent = 'Connection Error';
+      }
+      setTimeout(setupRealtimeUpdates, 1000); // Retry after 1 second
+      return;
+    }
+    
+    const { collection, onSnapshot } = firestore;
+    
+    try {
+      // Create the listener with error handling
+      window._timetableListener = onSnapshot(
+        collection(window.db, "timetableEntries"),
+        (snapshot) => {
+          const timestamp = new Date().toLocaleTimeString();
+          console.log(`[${timestamp}] Timetable data updated in real-time`);
+          
+          // Visual feedback
+          if (statusIndicator) {
+            statusIndicator.style.background = 'rgba(52,168,83,0.8)';
+            statusIndicator.textContent = `Connected ✓`;
+            // Flash effect
+            statusIndicator.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+              if (statusIndicator) statusIndicator.style.transform = 'scale(1)';
+            }, 200);
+          }
+          
+          // Convert snapshot to array of entries
+          const entries = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          
+          // Update global entries
+          window.timetableEntries = entries;
+          
+          // Update display based on page
+          if (window.location.href.includes('AdminPanel.html')) {
+            displayEntriesInAdmin();
+            if (typeof updateStats === 'function') updateStats();
+          } else {
+            renderTimetable(entries);
+          }
+        },
+        (error) => {
+          console.error("Real-time updates error:", error);
+          if (statusIndicator) {
+            statusIndicator.style.background = 'rgba(234,67,53,0.8)';
+            statusIndicator.textContent = 'Error: ' + error.code;
+          }
+          
+          // Reset listener and retry after error
+          window._timetableListener = null;
+          setTimeout(setupRealtimeUpdates, 3000);
+        }
+      );
+      
+      console.log("Real-time listener setup complete");
+    } catch (error) {
+      console.error("Error setting up onSnapshot:", error);
+      if (statusIndicator) {
+        statusIndicator.style.background = 'rgba(234,67,53,0.8)';
+        statusIndicator.textContent = 'Setup Error';
+      }
+      setTimeout(setupRealtimeUpdates, 2000);
+    }
+  } catch (error) {
+    console.error("Error in setupRealtimeUpdates:", error);
+    setTimeout(setupRealtimeUpdates, 2000);
+  }
 }
