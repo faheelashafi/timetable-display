@@ -35,18 +35,55 @@ body {
 
 /* Add this section for DisplayTimetable.html only */
 .timetable-view {
-  height: 100vh;
-  overflow: hidden; /* Prevent scrolling only on timetable display */
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.timetable-view .table-container {
+    width: 100% !important; /* Override the 98% width */
+    margin: 0 !important; /* Override auto margins */
+    padding: 0;
+    max-width: none !important; /* Remove any max-width */
+}
+
+.timetable-view table {
+    width: 100%;
+    table-layout: fixed; /* Important for equal column distribution */
+}
+
+.timetable-view .day-cell {
+    width: 8% !important; /* Make the day column narrower */
+}
+
+.timetable-view .session-cell {
+    width: 4% !important; /* Make the session column narrower */
+}
+
+/* Remove any possible margins on body */
+body.timetable-view {
+    margin: 0;
+    padding: 0;
+}
+
+/* Ultra compact header needs to be full width too */
+.ultra-compact-header {
+    width: 100%;
+    padding: 1px 0;
 }
 
 /* Keep AdminPanel.html scrollable */
 body {
-  margin: 0;
-  padding: 0;
-  font-family: Arial, sans-serif;
-  background-color: #f8f9fa;
-  color: #333;
-  /* Remove the overflow: hidden that was causing the issue */
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    /* Remove the overflow: hidden that was causing the issue */
 }
 
 header {
@@ -130,6 +167,33 @@ h1 {
     font-weight: normal;
     color: #6c757d;
     margin: 0;
+}
+
+/* Ultra compact header for timetable display */
+.ultra-compact-header {
+    background-color: #f8f9fa;
+    padding: 1px 0;
+    border-bottom: 1px solid #dee2e6;
+    margin: 0;
+    text-align: center;
+    width: 100%;
+}
+
+.ultra-compact-header h1 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0;
+    padding: 0;
+    border: none;
+    color: #333;
+}
+
+.ultra-compact-header h2 {
+    font-size: 12px;
+    font-weight: normal;
+    color: #6c757d;
+    margin: 0;
+    padding: 0;
 }
 
 /* Login Form Styles */
@@ -253,20 +317,28 @@ button.small {
 
 /* Specific styles for the timetable display view */
 .timetable-view .table-container {
-    height: calc(100vh - 70px); /* Adjust for smaller header */
+    flex: 1;
     overflow: auto;
+    margin: 0;
+    padding: 0;
 }
 
 .timetable-view .timetable-header {
-  margin-bottom: 0.5vh;
-  padding: 1vh;
+    margin-bottom: 0.5vh;
+    padding: 1vh;
 }
 
 .timetable-view .table {
-  width: 100%;
-  height: 100%;
-  font-size: 1.8vh;
-  table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin: 0;
+}
+
+.timetable-view .table th,
+.timetable-view .table td {
+    padding: 3px 2px;
+    font-size: 12px;
 }
 
 /* Timetable Table Improvements */
@@ -279,7 +351,7 @@ button.small {
 
 .table th,
 .table td {
-    padding: 0.6vh 0.4vw;
+    padding: 4px 2px;
     min-width: auto;
     text-align: center;
     vertical-align: middle;
@@ -288,6 +360,8 @@ button.small {
     text-overflow: ellipsis;
     border: 1px solid #b2bec3;
     font-size: 15px;
+    box-sizing: border-box;
+    border-right: 1px solid #ccc;
 }
 
 /* Time slot styling for better display */
@@ -336,8 +410,10 @@ button.small {
     color: #222;
     font-weight: 600;
     border-radius: 4px;
-    border: 1px solid #d1c4e9;
+    border-left: 2px solid #4caf50 !important;  /* Bold green left border for start time */
+    border-right: 2px solid #4caf50 !important; /* Bold green right border for end time */
     padding: 0.4vh 0.2vw;
+    position: relative;
 }
 
 .table .course-cell div {
@@ -357,6 +433,53 @@ button.small {
 
 .table tr:not(:first-child):nth-child(4n+1) td {
     border-top: 4px solid #7cb342 !important;
+}
+
+/* Session-specific background colors */
+.table tr[data-session="2021"] td:not(.day-cell):not(.session-cell) {
+    background-color: #e3f2fd !important; /* Light blue for 2021 */
+}
+
+.table tr[data-session="2022"] td:not(.day-cell):not(.session-cell) {
+    background-color: #e8f5e9 !important; /* Light green for 2022 */
+}
+
+.table tr[data-session="2023"] td:not(.day-cell):not(.session-cell) {
+    background-color: #fff3e0 !important; /* Light orange for 2023 */
+}
+
+.table tr[data-session="2024"] td:not(.day-cell):not(.session-cell) {
+    background-color: #f3e5f5 !important; /* Light purple for 2024 */
+}
+
+/* Time slot end borders */
+.table td.time-slot-end {
+    border-right: 2px solid #4caf50 !important;
+}
+
+/* Course cell highlighting */
+.table td.course-cell {
+    font-weight: bold;
+    border: 1px solid #ccc;
+    position: relative;
+}
+
+/* Lab class styling with diagonal pattern */
+.table td.lab-course {
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 220, 0.8),
+        rgba(255, 255, 220, 0.8) 10px,
+        rgba(240, 240, 190, 0.8) 10px,
+        rgba(240, 240, 190, 0.8) 20px
+    ) !important;
+    border-left: 2px solid #ff9800 !important;  /* Orange border for lab courses */
+    border-right: 2px solid #ff9800 !important;
+}
+
+/* Make sure table cells with content stand out */
+.table td:not(:empty) {
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
 /* Responsive adjustments for time slots */

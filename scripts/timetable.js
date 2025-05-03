@@ -58,9 +58,6 @@ function setupFirebase(imports) {
   }
 }
 
-// Make setupFirebase available globally
-window.setupFirebase = setupFirebase;
-
 // Your Firebase config
 const firebaseConfig = {
     apiKey: "AIzaSyB6PZysrQMckTjMuBVv0FohIaI9FJIrhLQ",
@@ -695,10 +692,7 @@ function generatePDF() {
                         const slotStart = slotParts[0];
                         const slotEnd = slotParts[1];
                         
-                        const entry = sessionEntries.find(e =>
-                            normalizeTimeFormat(e.startTime) === slotStart &&
-                            normalizeTimeFormat(e.endTime) === slotEnd
-                        );
+                        const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
                         
                         if (entry) {
                             const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
@@ -862,48 +856,15 @@ function generatePDF() {
     }
 }
 
-// Replace the existing login response handling in your login form event listener
+// Comment out this entire section to avoid conflicts
+/*
 document.getElementById('loginForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value.trim();
-    const rememberMe = document.getElementById('rememberMe')?.checked || false;
-    
-    if (!username || !password) {
-        alert('Please enter both username and password.');
-        return;
-    }
-    
-    // Simple mock authentication
-    if (username === 'admin' && password === 'admin123') {
-        // Create a simple mock token with expiration
-        const now = new Date();
-        const expiration = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-        const tokenPayload = {
-            sub: username,
-            role: 'admin',
-            exp: Math.floor(expiration.getTime() / 1000)
-        };
-        
-        // Create a simple JWT-like token (not a real JWT, just for mock)
-        const tokenHeader = btoa(JSON.stringify({ alg: 'mock' }));
-        const tokenBody = btoa(JSON.stringify(tokenPayload));
-        const mockToken = `${tokenHeader}.${tokenBody}.mocksignature`;
-        
-        // Store in session
-        sessionStorage.setItem('authToken', mockToken);
-        sessionStorage.setItem('loggedIn', 'true');
-        sessionStorage.setItem('currentUser', username);
-        
-        if (rememberMe) {
-            localStorage.setItem('rememberedUser', username);
-        }
-        
-        window.location.href = 'AdminPanel.html';
-    } else {
-        alert('Invalid username or password. Try admin/admin123');
-    }
+    // ... rest of the login handler code
 });
+*/
 
 // Main application initialization function
 function initializeApplication() {
@@ -1013,13 +974,38 @@ function handleLogout() {
   window.location.href = 'AdminLogin.html';
 }
 
-// Handle PDF generation
+// Updated handleGeneratePdf function with proper data loading
 async function handleGeneratePdf() {
   try {
-    await ensureJsPdfLoaded();
-    generatePDF();
+    console.log("Starting PDF generation process");
+    
+    // Make sure we have the latest data first
+    await loadAndDisplayEntries(); 
+    
+    // Wait a moment for data to load and process
+    setTimeout(() => {
+      // Force refresh entries from Firestore
+      getAllTimetableEntries().then(entries => {
+        console.log(`Retrieved ${entries.length} entries for PDF`);
+        
+        // Store entries globally for the PDF function to use
+        window.timetableEntries = entries;
+        
+        if (entries.length === 0) {
+          alert("No entries found to generate PDF. Please add some entries first.");
+          return;
+        }
+        
+        // Now generate the PDF with the fresh data
+        generatePDF();
+      }).catch(error => {
+        console.error("Error fetching entries for PDF:", error);
+        alert("Failed to fetch entries for PDF generation");
+      });
+    }, 500);
   } catch (error) {
-    handleError(error, "handleGeneratePdf");
+    console.error("PDF generation error:", error);
+    alert("PDF generation failed: " + error.message);
   }
 }
 
@@ -1325,7 +1311,7 @@ function getHardcodedTimeSlots() {
     return slots;
 }
 
-// Update renderTimetable function to display time slots without AM/PM format
+// Update renderTimetable function to add session data attributes and time-slot-end class
 function renderTimetable(entries) {
     const tableBody = document.getElementById('timetableBody');
     const table = document.getElementById('timetableDisplay');
@@ -1427,12 +1413,7 @@ function renderTimetable(entries) {
                 const [slotStart, slotEnd] = timeSlot.split('-');
                 
                 // Find an entry that starts at this slot
-                const entry = sessionEntries.find(e => {
-                    // Check if this entry starts at or before this slot and ends after this slot
-                    const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
-                    const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
-                    return entryStartMins === slotStartMins;
-                });
+                const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
                 
                 if (entry) {
                     // Calculate how many slots this entry spans
@@ -1455,6 +1436,24 @@ function renderTimetable(entries) {
                     
                     cell.innerHTML = `<div style="font-weight:bold;">${entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode}</div>`;
                     cell.title = `${entry.courseName}\nTime: ${entry.startTime}-${entry.endTime}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
+                    
+                    // Add time-slot-end class to last cell or when a course ends
+                    if (slotIndex < timeSlots.length - 1) {
+                        const nextSlot = timeSlots[slotIndex + 1];
+                        const [_, slotEnd] = timeSlot.split('-');
+                        const [nextStart, __] = nextSlot.split('-');
+                        
+                        // If this entry ends at this slot
+                        if (normalizeTimeFormat(entry.endTime) === slotEnd) {
+                            cell.classList.add('time-slot-end');
+                        }
+                    }
+                    
+                    // If it's the last slot in the row
+                    if (slotIndex === timeSlots.length - 1) {
+                        cell.classList.add('time-slot-end');
+                    }
+                    
                     row.appendChild(cell);
                 } else {
                     // Check if there's an entry that spans this slot
@@ -1825,3 +1824,40 @@ window.ensureCollectionsExist = ensureCollectionsExist;
 
 // At the END of your timetable.js file, add this line - it must be OUTSIDE any function
 window.setupFirebase = setupFirebase;
+
+// Also add this to limit Firebase initialization error messages
+let _lastFirebaseError = 0;
+function handleFirebaseError(error) {
+  if (Date.now() - _lastFirebaseError < 10000) {
+    console.error("Suppressing duplicate Firebase error:", error);
+    return;
+  }
+  _lastFirebaseError = Date.now();
+  console.error("Firebase error:", error);
+  alert("Firebase database not initialized. Please check your connection and try again.");
+}
+
+// Helper function to correctly match entries to time slots for PDF
+function findEntryForTimeSlot(entries, slotStart, slotEnd) {
+  // First try exact match
+  let entry = entries.find(e => 
+    normalizeTimeFormat(e.startTime) === slotStart && 
+    normalizeTimeFormat(e.endTime) === slotEnd
+  );
+  
+  // If exact match fails, try to find an overlapping entry
+  if (!entry) {
+    const slotStartMinutes = convertToMinutes(slotStart);
+    const slotEndMinutes = convertToMinutes(slotEnd);
+    
+    entry = entries.find(e => {
+      const entryStartMinutes = convertToMinutes(normalizeTimeFormat(e.startTime));
+      const entryEndMinutes = convertToMinutes(normalizeTimeFormat(e.endTime));
+      
+      // Entry overlaps with slot
+      return (entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes);
+    });
+  }
+  
+  return entry;
+}

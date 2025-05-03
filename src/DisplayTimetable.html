@@ -5,15 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>University Timetable</title>
     <link rel="stylesheet" href="../styles/styles.css">
-    <!-- Load timetable.js first and ensure it's not type="module" -->
     <script src="../scripts/timetable.js"></script>
 </head>
 <body class="timetable-view">
-    <div class="header">
-        <div class="compact-header">
-            <h1>Time Table</h1>
-            <h2>DEPT. OF CS &amp; IT - University of Chakwal</h2>
-        </div>
+    <!-- Ultra-compact header with minimal margin/padding -->
+    <div class="ultra-compact-header">
+        <h1>Time Table</h1>
+        <h2>DEPT. OF CS &amp; IT - University of Chakwal</h2>
     </div>
 
     <div class="table-container">
@@ -31,15 +29,12 @@
         </table>
     </div>
 
-    <!-- CHANGED: Fixed module ordering -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
         import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         
-        // Wait for DOM content to be loaded
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                // Now we can access setupFirebase
                 window.setupFirebase({
                     initializeApp,
                     getFirestore: firestore.getFirestore,
@@ -54,27 +49,11 @@
                     arrayUnion: firestore.arrayUnion,
                     arrayRemove: firestore.arrayRemove
                 });
-
-                // Add this line AFTER the setupFirebase function definition, not inside it
-            
                 
-                // Render empty grid immediately 
                 renderEmptyTimetableGrid();
-                
-                // Load entries after Firebase is initialized
-                setTimeout(() => {
-                    loadAndDisplayEntries();
-                }, 500);
+                setTimeout(() => loadAndDisplayEntries(), 500);
             } catch (error) {
-                console.error("Firebase initialization failed:", error);
                 renderEmptyTimetableGrid();
-                
-                // Show error to user
-                const errorEl = document.createElement('div');
-                errorEl.className = 'alert alert-danger';
-                errorEl.style.cssText = 'padding:15px;margin:15px;background:#f8d7da;color:#721c24;border-radius:4px;';
-                errorEl.textContent = "Could not load timetable data. Please try again later.";
-                document.body.prepend(errorEl);
             }
         });
     </script>
