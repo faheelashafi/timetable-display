@@ -67,6 +67,35 @@
                 renderEmptyTimetableGrid();
             }
         });
+
+        // In renderTimetable function and renderEmptyTimetableGrid function
+        // around line 1750-1760, modify where it creates the th elements
+
+        // Find this section in renderTimetable:
+        timeSlots.forEach(slot => {
+            const th = document.createElement('th');
+            
+            // Convert the slot to 12-hour format display
+            const [start, end] = slot.split('-');
+            const startHour = parseInt(start.split(':')[0]);
+            const endHour = parseInt(end.split(':')[0]);
+            
+            // Format for 12-hour display without AM/PM
+            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
+            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
+            
+            // Add minutes part
+            const startMinutes = start.split(':')[1];
+            const endMinutes = end.split(':')[1];
+            
+            // No AM/PM as requested
+            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
+            
+            // ADD THIS LINE - smaller font for time slot headers
+            th.style.fontSize = '11px'; // Reduced font size for header time slots
+            
+            headerRow.appendChild(th);
+        });
     </script>
 </body>
 </html>

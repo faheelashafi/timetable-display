@@ -929,9 +929,9 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                 },
                 columnStyles: {
                     // Add specific width to time columns (index 2 and above)
-                    2: { cellWidth: 13 },   // First time slot
-                    3: { cellWidth: 13 },   // Second time slot
-                    4: { cellWidth: 13 }    // and so on... (apply to all time slots if needed)
+                    2: { cellWidth: 14 },   // Increased from 13 to 14
+                    3: { cellWidth: 14 },   // Increased from 13 to 14
+                    4: { cellWidth: 14 }    // Increased from 13 to 14
                     // You can continue with more indices if needed
                 },
                 didParseCell: function(data) {
@@ -1758,6 +1758,10 @@ function renderTimetable(entries) {
             
             // No AM/PM as requested
             th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
+            
+            // ADD THIS LINE - smaller font for time slot headers
+            th.style.fontSize = '10px'; // Reduced font size for header time slots
+            
             headerRow.appendChild(th);
         });
     }
@@ -1786,6 +1790,8 @@ function renderTimetable(entries) {
                 dayCell.style.color = "#fff";
                 dayCell.style.fontWeight = "bold";
                 dayCell.style.background = "#388e3c";
+                dayCell.style.fontSize = "11px"; // Decreased from default
+                dayCell.style.width = "10%";     // Ensure enough width
                 
                 row.appendChild(dayCell);
             }
@@ -2007,6 +2013,10 @@ function renderEmptyTimetableGrid() {
             
             // No AM/PM as requested
             th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
+            
+            // ADD THIS LINE - smaller font for time slot headers
+            th.style.fontSize = '11px'; // Reduced font size for header time slots
+            
             headerRow.appendChild(th);
         });
     }
@@ -2027,10 +2037,13 @@ function renderEmptyTimetableGrid() {
                 dayCell.className = 'day-cell';
                 dayCell.textContent = day;
                 dayCell.rowSpan = sessions.length;
-                dayCell.style.display = "table-cell"; // Force visibility
-                dayCell.style.color = "#fff"; // Ensure text is visible
+                dayCell.style.display = "table-cell"; 
+                dayCell.style.color = "#fff";
                 dayCell.style.fontWeight = "bold";
                 dayCell.style.background = "#388e3c";
+                dayCell.style.fontSize = "10px"; // Decreased from default
+                dayCell.style.width = "10%";     // Ensure enough width
+                
                 row.appendChild(dayCell);
             }
             
