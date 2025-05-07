@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "public": true,
   "buildCommand": "",
   "devCommand": "echo 'Open index.html in a browser to run the application'",
   "outputDirectory": ".",
