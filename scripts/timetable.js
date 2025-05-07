@@ -130,11 +130,11 @@ function isEntryInTimeSlot(entry, slotStart) {
     return (entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes);
 }
 
-// Update the getAllTimeSlots function to use the actual time range from the display
+// Modify the getAllTimeSlots function to use 17:00 (5pm) as default end time
 function getAllTimeSlots(entries) {
     // Use the start and end times from localStorage to match the display view
     const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '19:00'; // Extended to match display
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
     
     return getDynamicTimeSlots(startTime, endTime);
 }
@@ -1235,11 +1235,19 @@ document.getElementById('loginForm')?.addEventListener('submit', function(e) {
 
 // Main application initialization function
 function initializeApplication() {
+  // Prevent multiple initializations
+  if (window._appInitialized) {
+    console.log("Application already initialized, skipping");
+    return;
+  }
+  
   // Don't show loading indicator on DisplayTimetable page
   let loadingElement = null;
   if (window.location.href.includes('AdminPanel.html')) {
     loadingElement = showLoading("Loading application...");
   }
+  
+  window._appInitialized = true; // Set the flag
   
   try {
     // Check login status first
@@ -1287,7 +1295,7 @@ function initializeApplication() {
     const timetableEndTime = document.getElementById('timetableEndTime');
     if (timetableStartTime && timetableEndTime) {
         timetableStartTime.value = localStorage.getItem('timetableStartTime') || '08:00';
-        timetableEndTime.value = localStorage.getItem('timetableEndTime') || '13:00';
+        timetableEndTime.value = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
     }
   } catch (error) {
     handleError(error, "initializeApplication", false);
@@ -1309,8 +1317,13 @@ document.addEventListener('DOMContentLoaded', function() {
   autoUpdateSessionOptions();
 });
 
-// Create a separate function for event handlers
+// Replace the setupEventHandlers function to ensure it only registers listeners once
 function setupEventHandlers() {
+  // Check if we've already set up the handlers to avoid duplicates
+  if (window._eventHandlersInitialized) return;
+  window._eventHandlersInitialized = true;
+  
+  // Set up event handlers for buttons
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', handleLogout);
@@ -1344,7 +1357,7 @@ function setupEventHandlers() {
         
         // Validate that end time is after start time
         if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
-            alert('End time must be after start time');
+            showToastMessage('End time must be after start time', 'error');
             return;
         }
         
@@ -1355,7 +1368,8 @@ function setupEventHandlers() {
         // Refresh the display
         loadAndDisplayEntries();
         
-        alert('Time range updated successfully!');
+        // Use toast notification instead of alert
+        showToastMessage('Time range updated successfully!', 'success');
     });
   }
 }
@@ -1734,7 +1748,7 @@ function renderTimetable(entries) {
     
     // Use dynamic time slots
     const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
     const timeSlots = getDynamicTimeSlots(startTime, endTime);
     
     // Add time slots to header without AM/PM format
@@ -1906,7 +1920,7 @@ function doesEntryFitTimeSlot(entry, slotStart, slotEnd) {
 // Also update the getAllTimeSlots function to use hardcoded slots for PDF generation
 function getAllTimeSlots(entries) {
     const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
     return getDynamicTimeSlots(startTime, endTime);
 }
 
@@ -1982,7 +1996,7 @@ function renderEmptyTimetableGrid() {
 
     // Get dynamic time slots
     const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '13:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
     const timeSlots = getDynamicTimeSlots(startTime, endTime);
     
     // Add time slots to header without AM/PM format
@@ -2409,3 +2423,48 @@ document.addEventListener('DOMContentLoaded', function() {
         setupEventHandlers();
     });
 });
+
+// Add this function to your code
+function showToastMessage(message, type = 'info') {
+    // Remove any existing toast
+    const existingToast = document.getElementById('toast-message');
+    if (existingToast) {
+        document.body.removeChild(existingToast);
+    }
+    
+    // Create and style the toast
+    const toast = document.createElement('div');
+    toast.id = 'toast-message';
+    toast.textContent = message;
+    
+    // Set color based on type
+    let backgroundColor = '#4CAF50'; // Green for success
+    if (type === 'error') backgroundColor = '#F44336'; // Red for error
+    if (type === 'warning') backgroundColor = '#FF9800'; // Orange for warning
+    if (type === 'info') backgroundColor = '#2196F3'; // Blue for info
+    
+    // Style the toast
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: ${backgroundColor};
+        color: white;
+        padding: 16px 32px;
+        border-radius: 4px;
+        font-size: 16px;
+        z-index: 10000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    `;
+    
+    // Add to DOM
+    document.body.appendChild(toast);
+    
+    // Automatically remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode === document.body) {
+            document.body.removeChild(toast);
+        }
+    }, 3000);
+}
