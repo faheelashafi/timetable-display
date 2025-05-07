@@ -677,204 +677,312 @@ async function displayEntriesInAdmin() {
     }
 }
 
-// Enhanced PDF generation function to match on-screen display
-function generatePDF() {
+// Updated handleGeneratePdf function with proper data loading
+async function handleGeneratePdf() {
+  try {
+    console.log("Starting PDF generation process in handleGeneratePdf");
+    
+    const loadingEl = showLoading("Generating PDF..."); // Show loading indicator
+
+    // Make sure we have the latest data first
+    // loadAndDisplayEntries also updates window.timetableEntries
+    await loadAndDisplayEntries(); 
+    
+    // Get the fresh entries directly
+    const entriesForPdf = await getAllTimetableEntries();
+    console.log(`[handleGeneratePdf] Retrieved ${entriesForPdf.length} entries directly for PDF`);
+        
+    if (entriesForPdf.length === 0) {
+      alert("No entries found to generate PDF. Please add some entries first.");
+      // No need to hide loading here if generatePDF is not called
+      // but if we return early, we should hide it.
+      if (loadingEl) hideLoading(); 
+      return;
+    }
+    
+    // Now generate the PDF with the fresh data, passing it directly
+    generatePDF(entriesForPdf); // Pass entries as an argument
+
+  } catch (error) {
+    console.error("PDF generation error in handleGeneratePdf:", error);
+    alert("PDF generation failed: " + error.message);
+  } finally {
+    // Ensure loading indicator is hidden if it was shown by this function
+    // Check if the element still exists before trying to remove
+    const loadingElCheck = document.getElementById('app-loading');
+    if (loadingElCheck) hideLoading();
+  }
+}
+
+// Enhanced PDF generation function to match the formal academic format
+function generatePDF(entriesFromCaller) { // Accept entries as a parameter
     try {
+        // Use entriesFromCaller if provided, otherwise fallback to window.timetableEntries
+        const entries = entriesFromCaller || window.timetableEntries || [];
+        console.log("generatePDF: Using entries. Count:", entries.length);
+        if (entriesFromCaller) {
+            console.log("generatePDF: Received entries directly from caller.");
+        } else {
+            console.log("generatePDF: Using window.timetableEntries as fallback.");
+        }
+
+        console.log("generatePDF: Initial window.timetableEntries:", JSON.parse(JSON.stringify(entries)));
+
         ensureJsPdfLoaded().then(() => {
             const { jsPDF } = window.jspdf;
+            console.log(`generatePDF: jsPDF loaded successfully ${jsPDF.version}`);
             if (!jsPDF) {
                 alert("PDF generation failed: jsPDF library not loaded properly");
                 return;
             }
             
-            // Create landscape PDF with exact dimensions that better match screen display
-            const doc = new jsPDF('l', 'mm', 'a4');
+            const doc = new jsPDF('p', 'mm', 'a4');
             const pageWidth = doc.internal.pageSize.width;
             const pageHeight = doc.internal.pageSize.height;
-            const margin = 10; // Reduced margins for more space
+            const margin = 10;
             
-            // Title section with minimal spacing to maximize timetable area
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
-            doc.text('Time Table Fall Semester 2024', pageWidth / 2, 10, { align: 'center' });
+            doc.text('Time Table Fall Semester 2024', pageWidth / 2, 15, { align: 'center' });
             doc.setFontSize(12);
             doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
-                pageWidth / 2, 15, { align: 'center' });
+                pageWidth / 2, 20, { align: 'center' });
             doc.setFontSize(10);
-            doc.text('University of Chakwal', pageWidth / 2, 20, { align: 'center' });
+            doc.text('University of Chakwal', pageWidth / 2, 25, { align: 'center' });
+            doc.text('BSIT -1st, 3rd, 5th, 7th Semester (Evening): 30-09-2024', pageWidth / 2, 30, { align: 'center' });
             
-            // Get time slots using the same logic as the display
-            const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-            const endTime = localStorage.getItem('timetableEndTime') || '13:00';
-            const timeSlots = getDynamicTimeSlots(startTime, endTime);
+            if (entries.length === 0) {
+                console.warn("generatePDF: No entries found in window.timetableEntries when starting grid generation. PDF timetable grid will be empty.");
+            }
             
-            // Format time slots exactly like on screen
-            const formattedTimeSlots = timeSlots.map(slot => {
-                const [start, end] = slot.split('-');
-                // Keep the format exactly as in the display
-                return slot;
-            });
+            let startY = 35;
             
-            // Create headers row with better formatting
-            const headerRow = ['Day', 'Session'];
-            formattedTimeSlots.forEach(slot => {
-                const [start, end] = slot.split('-');
-                // Format with arrow to clearly show start→end relationship
-                headerRow.push(`${start} → ${end}`);
-            });
-            
-            // Prepare data for autoTable
-            const tableData = [];
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const sessions = ['2021', '2022', '2023', '2024'];
+            const sessions = ['2024', '2023', '2022', '2021'];
             
-            // Prepare cell height and width options
-            const cellOptions = {
-                styles: {
-                    cellPadding: 2,
-                    fontSize: 9
-                },
-                headStyles: {
-                    fillColor: [56, 142, 60],
-                    textColor: [255, 255, 255],
-                    fontStyle: 'bold'
-                },
-                columnStyles: {
-                    0: { // Day column
-                        fillColor: [56, 142, 60],
-                        textColor: [255, 255, 255],
-                        fontStyle: 'bold'
-                    }
-                },
-                didParseCell: styleTableCells
-            };
+            const timeSlots = [
+                '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', '03:00-03:30',
+                '03:30-04:00', '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', 
+                '06:00-06:30', '06:30-07:00'
+            ];
             
-            // Generate table data using same logic as display
-            const entries = window.timetableEntries || [];
+            const scheduleHeader = ['Day', 'Session', ...timeSlots];
+            const scheduleData = [];
             
             days.forEach(day => {
-                const dayEntries = entries.filter(entry => entry.day === day);
-                
-                sessions.forEach((session, sessionIndex) => {
+                sessions.forEach((session, idx) => {
                     const row = [];
                     
-                    // Add day only for first session of each day
-                    if (sessionIndex === 0) {
+                    if (idx === 0) {
                         row.push(day);
                     } else {
                         row.push('');
                     }
-                    
-                    // Add session
                     row.push(session);
                     
-                    // Filter entries for this session
-                    const sessionEntries = dayEntries.filter(entry => entry.session === session);
+                    const daySessionEntries = entries.filter(entry => 
+                        entry.day === day && entry.session === session);
                     
-                    // Process each time slot
-                    let skipCells = 0;
-                    for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
-                        if (skipCells > 0) {
-                            skipCells--;
-                            row.push(''); // Push empty string for skipped cells for proper alignment
-                            continue;
-                        }
+                    // LOGGING: Check filtered entries for the current day and session
+                    console.log(`[PDF GRID] Day: ${day}, Session: ${session}. Filtered ${daySessionEntries.length} entries.`);
+                    
+                    for (let i = 0; i < timeSlots.length; i++) {
+                        let cellContent = '';
+                        const currentPdfTimeSlot = timeSlots[i];
                         
-                        const timeSlot = timeSlots[slotIndex];
-                        const [slotStart, slotEnd] = timeSlot.split('-');
-                        
-                        const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
-                        
-                        if (entry) {
-                            // Calculate how many slots this entry spans
-                            const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                            const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                            
-                            // Calculate how many half-hour slots this covers
-                            const slotSpan = Math.max(1, Math.ceil((entryEndMins - entryStartMins) / 30));
-                            
-                            // Add the course code to the cell
-                            row.push(entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode);
-                            
-                            // Set colSpan for this cell (will be processed in didDrawCell)
-                            if (slotSpan > 1) {
-                                const lastCell = row[row.length - 1];
-                                row[row.length - 1] = {
-                                    content: lastCell,
-                                    colSpan: slotSpan,
-                                    isLab: entry.isLab,
-                                    rowSpan: 1,
-                                    session: session
-                                };
-                                skipCells = slotSpan - 1;
+                        for (const entry of daySessionEntries) {
+                            // LOGGING: Check each entry against the current PDF time slot
+                            const isMatch = timeSlotMatches(currentPdfTimeSlot, entry.startTime, entry.endTime);
+                            console.log(`[PDF CELL] Slot: ${currentPdfTimeSlot}, Entry: ${entry.courseCode} (${entry.startTime}-${entry.endTime}), Day: ${entry.day}, Session: ${entry.session}. Match returned: ${isMatch}`);
+                            if (isMatch) {
+                                cellContent = entry.courseCode + (entry.isLab ? ' Lab' : '');
+                                console.log(`[PDF CELL] ✓ MATCH FOUND: Placing "${cellContent}" in Slot ${currentPdfTimeSlot}`);
+                                break; 
                             }
-                        } else {
-                            row.push('');
                         }
+                        row.push(cellContent);
                     }
-                    
-                    tableData.push(row);
+                    scheduleData.push(row);
                 });
             });
-            
-            // Create the PDF table with properly configured options
+
+            // LOGGING: Check the final data structure for the main grid
+            console.log("generatePDF: Final scheduleData for main grid:", JSON.parse(JSON.stringify(scheduleData)));
+
             doc.autoTable({
-                head: [headerRow],
-                body: tableData,
-                startY: 25,
-                margin: { top: 25, left: margin, right: margin, bottom: margin },
-                styles: cellOptions.styles,
-                headStyles: cellOptions.headStyles,
+                head: [scheduleHeader],
+                body: scheduleData,
+                startY: startY,
+                styles: {
+                    cellPadding: 2,
+                    fontSize: 8,
+                    overflow: 'linebreak',
+                    halign: 'center'
+                },
+                headStyles: {
+                    fillColor: [56, 142, 60],
+                    textColor: [255, 255, 255]
+                },
                 didParseCell: function(data) {
-                    // Style the cells based on content
-                    if (data.section === 'body') {
-                        // First column (day)
-                        if (data.column.index === 0 && data.cell.text && data.cell.text.length > 0) {
-                            data.cell.styles.fillColor = [56, 142, 60];
-                            data.cell.styles.textColor = [255, 255, 255];
-                            data.cell.styles.fontStyle = 'bold';
-                        }
-                        
-                        // Second column (session)
-                        if (data.column.index === 1) {
-                            data.cell.styles.fillColor = [232, 245, 233];
-                            data.cell.styles.textColor = [0, 0, 0];
-                        }
-                        
-                        // Course cells
-                        if (data.column.index > 1 && data.cell.text && data.cell.text.length > 0) {
-                            const session = data.row.cells[1].text;
-                            const isLab = data.cell.text[0] && data.cell.text[0].includes('Lab');
-                            
-                            if (isLab) {
-                                data.cell.styles.fillColor = [255, 248, 225]; // Light yellow for labs
-                                data.cell.styles.fontStyle = 'italic';
-                            } else {
-                                // Style based on session, matching the display color scheme
-                                switch(session) {
-                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
-                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
-                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
-                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
-                                    default: data.cell.styles.fillColor = [240, 240, 240];
-                                }
+                    if (data.section === 'body' && data.column.index === 0 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
+                        data.cell.styles.fillColor = [56, 142, 60];
+                        data.cell.styles.textColor = [255, 255, 255];
+                    }
+                    if (data.section === 'body' && data.column.index === 1 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
+                        data.cell.styles.fillColor = [232, 245, 233];
+                    }
+                    if (data.section === 'body' && data.column.index > 1 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
+                        const cellText = data.cell.text[0]; // Get the first line of text
+                        if (cellText.includes('Lab')) {
+                            data.cell.styles.fillColor = [255, 248, 225];
+                            data.cell.styles.fontStyle = 'italic';
+                        } else {
+                            const sessionText = data.row.cells[1].text && data.row.cells[1].text.length > 0 ? data.row.cells[1].text[0] : "";
+                            switch(sessionText) {
+                                case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
+                                case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
+                                case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
+                                case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
                             }
                         }
                     }
                 }
             });
             
-            // Save the PDF with a proper filename
+            let currentY = doc.previousAutoTable.finalY + 10;
+            const sessionGroups = groupEntriesBySession(entries);
+            
+            for (const sessionKey in sessionGroups) {
+                if (sessionGroups[sessionKey].length === 0) continue;
+                
+                const sessionYear = sessionKey;
+                const sessionTitle = `Session ${sessionYear} (${getSessionName(sessionYear)})`;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text(sessionTitle, margin, currentY);
+                
+                const courseDetailsHeader = ['Course Code', 'Course Name', 'Credit Hrs.', 'Teacher Name', 'Venue'];
+                const courseDetailsData = [];
+                const uniqueCourses = getUniqueCourses(sessionGroups[sessionKey]);
+                
+                uniqueCourses.forEach(course => {
+                    courseDetailsData.push([
+                        course.courseCode,
+                        course.courseName || '',
+                        course.creditHours || '',
+                        course.teacherName || '',
+                        course.venue || ''
+                    ]);
+                });
+                
+                doc.autoTable({
+                    head: [courseDetailsHeader],
+                    body: courseDetailsData,
+                    startY: currentY + 5,
+                    margin: { left: margin, right: margin },
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0], fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: [250, 250, 250] }
+                });
+                
+                currentY = doc.previousAutoTable.finalY + 10;
+                if (currentY > pageHeight - 50) {
+                    doc.addPage();
+                    currentY = 20;
+                }
+            }
+            
+            currentY = Math.max(currentY, pageHeight - 40);
+            doc.setFontSize(8);
+            doc.text('1.   Notice board', margin, currentY);
+            doc.text('2.   Concerned Teachers', margin, currentY + 5);
+            doc.text('3.   Concerned Labs', margin, currentY + 10);
+            doc.text('4.   Chairman Office', margin, currentY + 15);
+            
+            doc.text('Dr. Rashid Amin', pageWidth - margin - 30, currentY + 5, { align: 'right' });
+            doc.text('Head of Department', pageWidth - margin - 30, currentY + 10, { align: 'right' });
+            doc.text('Department of CS & IT', pageWidth - margin - 30, currentY + 15, { align: 'right' });
+            
             doc.save('Timetable_Fall_2024.pdf');
             
         }).catch(error => {
-            console.error("Error generating PDF:", error);
+            console.error("Error during PDF generation promise:", error);
             alert("PDF generation failed: " + error.message);
         });
     } catch (error) {
-        console.error("Error in generatePDF:", error);
+        console.error("Synchronous error in generatePDF:", error);
         alert("PDF generation failed: " + error.message);
     }
+}
+
+// Helper functions for PDF generation
+function timeSlotMatches(timeSlot, startTime, endTime) {
+    const [slotStartStr, slotEndStr] = timeSlot.split('-');
+    const normalizedEntryStartTime = normalizeTimeFormat(startTime);
+    const normalizedEntryEndTime = normalizeTimeFormat(endTime);
+    const entryStartMins = convertToMinutes(normalizedEntryStartTime);
+    const entryEndMins = convertToMinutes(normalizedEntryEndTime);
+    
+    const timeMap = {
+        '01:00': '13:00', '01:30': '13:30', 
+        '02:00': '14:00', '02:30': '14:30',
+        '03:00': '15:00', '03:30': '15:30', 
+        '04:00': '16:00', '04:30': '16:30',
+        '05:00': '17:00', '05:30': '17:30', 
+        '06:00': '18:00', '06:30': '18:30',
+        '07:00': '19:00'
+    };
+
+    const mappedPdfSlotStart = timeMap[slotStartStr] || slotStartStr;
+    const mappedPdfSlotEnd = timeMap[slotEndStr] || slotEndStr;
+    const pdfSlotStartMins = convertToMinutes(mappedPdfSlotStart);
+    const pdfSlotEndMins = convertToMinutes(mappedPdfSlotEnd);
+
+    const isMatch = (entryStartMins < pdfSlotEndMins && entryEndMins > pdfSlotStartMins);
+    
+    // LOGGING: Clear log for timeSlotMatches
+    console.log(`  [timeSlotMatches] Comparing: PDF Slot "${timeSlot}" (mapped to ${mappedPdfSlotStart}-${mappedPdfSlotEnd} => ${pdfSlotStartMins}-${pdfSlotEndMins} mins) WITH Entry "${startTime}-${endTime}" (normalized to ${normalizedEntryStartTime}-${normalizedEntryEndTime} => ${entryStartMins}-${entryEndMins} mins). Result: ${isMatch}`);
+    
+    return isMatch;
+}
+
+function getSessionName(session) {
+    switch(session) {
+        case '2021': return "1st Semester";
+        case '2022': return "3rd Semester";
+        case '2023': return "5th Semester";
+        case '2024': return "7th Semester";
+        default: return "";
+    }
+}
+
+function groupEntriesBySession(entries) {
+    const groups = {};
+    entries.forEach(entry => {
+        if (!groups[entry.session]) {
+            groups[entry.session] = [];
+        }
+        groups[entry.session].push(entry);
+    });
+    return groups;
+}
+
+function getUniqueCourses(entries) {
+    const uniqueCourses = {};
+    entries.forEach(entry => {
+        if (!uniqueCourses[entry.courseCode]) {
+            uniqueCourses[entry.courseCode] = {
+                courseCode: entry.courseCode,
+                courseName: entry.courseName,
+                creditHours: entry.creditHours,
+                teacherName: entry.teacherName,
+                venue: entry.venue,
+                isLab: entry.isLab
+            };
+        }
+    });
+    return Object.values(uniqueCourses);
 }
 
 // Helper function to generate main timetable data
@@ -1159,41 +1267,6 @@ function handleLogout() {
   
   // Redirect to login page
   window.location.href = 'AdminLogin.html';
-}
-
-// Updated handleGeneratePdf function with proper data loading
-async function handleGeneratePdf() {
-  try {
-    console.log("Starting PDF generation process");
-    
-    // Make sure we have the latest data first
-    await loadAndDisplayEntries(); 
-    
-    // Wait a moment for data to load and process
-    setTimeout(() => {
-      // Force refresh entries from Firestore
-      getAllTimetableEntries().then(entries => {
-        console.log(`Retrieved ${entries.length} entries for PDF`);
-        
-        // Store entries globally for the PDF function to use
-        window.timetableEntries = entries;
-        
-        if (entries.length === 0) {
-          alert("No entries found to generate PDF. Please add some entries first.");
-          return;
-        }
-        
-        // Now generate the PDF with the fresh data
-        generatePDF();
-      }).catch(error => {
-        console.error("Error fetching entries for PDF:", error);
-        alert("Failed to fetch entries for PDF generation");
-      });
-    }, 500);
-  } catch (error) {
-    console.error("PDF generation error:", error);
-    alert("PDF generation failed: " + error.message);
-  }
 }
 
 // Handle form submission
