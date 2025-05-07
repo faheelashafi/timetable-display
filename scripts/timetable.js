@@ -728,6 +728,41 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
 
         console.log("generatePDF: Initial window.timetableEntries:", JSON.parse(JSON.stringify(entries)));
 
+        // Create a color map to assign unique colors to courses
+        const courseColorMap = {};
+        const predefinedColors = [
+            [230, 232, 250], // Lavender
+            [224, 242, 241], // Light Teal
+            [238, 232, 213], // Light Tan
+            [225, 245, 254], // Very Light Blue
+            [232, 245, 233], // Light Mint Green
+            [255, 243, 224], // Light Peach
+            [241, 248, 233], // Light Sage
+            [237, 231, 246], // Soft Lilac
+            [248, 235, 230], // Pale Salmon
+            [230, 238, 247], // Ice Blue
+            [242, 240, 230], // Light Beige
+            [252, 236, 238], // Soft Pink
+            [230, 245, 240], // Mint Cream
+            [240, 240, 250], // Lavender Mist
+            [242, 237, 226], // Light Khaki
+            [236, 242, 248], // Pale Sky Blue
+            [245, 235, 224], // Light Peach
+            [235, 248, 235], // Honeydew
+            [240, 248, 255], // Alice Blue
+            [246, 246, 235]  // Light Ivory
+        ];
+
+        // Extract all unique course codes from entries
+        const allCourseCodes = [...new Set(entries.map(e => e.courseCode))];
+
+        // Assign colors to each course
+        allCourseCodes.forEach((code, index) => {
+            courseColorMap[code] = predefinedColors[index % predefinedColors.length];
+        });
+
+        console.log("Course color mapping:", courseColorMap);
+
         ensureJsPdfLoaded().then(() => {
             const { jsPDF } = window.jspdf;
             console.log(`generatePDF: jsPDF loaded successfully ${jsPDF.version}`);
@@ -833,26 +868,39 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                             };
                             
                             if (entryForSlot.isLab) {
-                                cellStyles.fillColor = [255, 248, 225];
-                                cellStyles.textColor = [0, 0, 0];
+                                // For lab courses, use a very light yellow with a subtle border
+                                cellStyles.fillColor = [255, 250, 230];  // Even lighter yellow for labs
+                                cellStyles.textColor = [80, 80, 80];     // Dark gray text instead of pure black
                                 cellStyles.fontStyle = 'italic';
+                                cellStyles.lineWidth = 0.5;              // Add a subtle border
+                                cellStyles.lineColor = [200, 200, 200];  // Light gray border
                             } else {
-                                switch(session) {
-                                    case '2021': cellStyles.fillColor = [242, 239, 255]; break;
-                                    case '2022': cellStyles.fillColor = [232, 247, 232]; break;
-                                    case '2023': cellStyles.fillColor = [231, 244, 255]; break;
-                                    case '2024': cellStyles.fillColor = [255, 251, 235]; break;
+                                // For regular courses, use the unique color assigned to each course code
+                                const courseColor = courseColorMap[entryForSlot.courseCode];
+                                
+                                if (courseColor) {
+                                    cellStyles.fillColor = courseColor;
+                                    
+                                    // Always use dark gray text for these pastel backgrounds
+                                    cellStyles.textColor = [80, 80, 80]; // Dark gray text for better contrast on light backgrounds
+                                    
+                                    // Add a subtle border to better distinguish cells
+                                    cellStyles.lineWidth = 0.25;
+                                    cellStyles.lineColor = [200, 200, 200];
+                                } else {
+                                    cellStyles.fillColor = [245, 245, 245]; // Very light gray
+                                    cellStyles.textColor = [80, 80, 80];    // Dark gray text
                                 }
                             }
                             
                             row.push({ content: cellContent, colSpan: colspan, styles: cellStyles });
                             slotIndex += colspan;
                         } else {
+                            // Empty cell - add an empty string
                             row.push('');
                             slotIndex++;
                         }
                     }
-                    
                     scheduleData.push(row);
                 });
             });
@@ -862,25 +910,32 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                 body: scheduleData,
                 startY: startY,
                 styles: {
-                    cellPadding: 1, // Reduced cell padding for more space
-                    fontSize: 7,    // Slightly reduced font size for cells
-                    overflow: 'linebreak', // Allow text to wrap if still necessary
+                    cellPadding: 2,    // Increased from 1.5 for more space
+                    fontSize: 7,
+                    overflow: 'linebreak',
                     halign: 'center',
-                    valign: 'middle'
+                    valign: 'middle',
+                    lineColor: [220, 220, 220],
+                    lineWidth: 0.1,
+                    minCellWidth: 12   // Add minimum cell width to prevent wrapping
                 },
                 headStyles: {
-                    fillColor: [56, 142, 60],
+                    fillColor: [56, 142, 60], // Changed to match day cells green color
                     textColor: [255, 255, 255],
-                    fontSize: 6, // Reduced font size for header time slots
+                    fontSize: 5.5,     // Slightly smaller font for headers to fit better
                     halign: 'center',
-                    valign: 'middle'
+                    valign: 'middle',
+                    cellPadding: 1.5   // Adjust padding specifically for header cells
                 },
                 columnStyles: {
-                    0: { cellWidth: 15 }, // Day column
-                    1: { cellWidth: 15 }, // Session column
-                    // Time slot columns will take up remaining space
+                    // Add specific width to time columns (index 2 and above)
+                    2: { cellWidth: 13 },   // First time slot
+                    3: { cellWidth: 13 },   // Second time slot
+                    4: { cellWidth: 13 }    // and so on... (apply to all time slots if needed)
+                    // You can continue with more indices if needed
                 },
                 didParseCell: function(data) {
+                    // Keep the existing didParseCell function
                     if (data.section === 'body' && data.column.index === 0 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
                         data.cell.styles.fillColor = [56, 142, 60];
                         data.cell.styles.textColor = [255, 255, 255];
@@ -888,20 +943,10 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                     if (data.section === 'body' && data.column.index === 1 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
                         data.cell.styles.fillColor = [232, 245, 233];
                     }
-                    if (data.section === 'body' && data.column.index > 1 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
-                        const cellText = data.cell.text[0]; // Get the first line of text
-                        if (cellText.includes('Lab')) {
-                            data.cell.styles.fillColor = [255, 248, 225];
-                            data.cell.styles.fontStyle = 'italic';
-                        } else {
-                            const sessionText = data.row.cells[1].text && data.row.cells[1].text.length > 0 ? data.row.cells[1].text[0] : "";
-                            switch(sessionText) {
-                                case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
-                                case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
-                                case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
-                                case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
-                            }
-                        }
+                    
+                    // For time header cells, ensure text doesn't wrap
+                    if (data.section === 'head' && data.column.index > 1) {
+                        data.cell.styles.minCellWidth = 13;  // Minimum width for time headers
                     }
                 }
             });
