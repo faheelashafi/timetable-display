@@ -703,30 +703,170 @@ function generatePDF() {
             doc.setFontSize(10);
             doc.text('University of Chakwal', pageWidth / 2, 20, { align: 'center' });
             
-            // Inside the generatePDF function, ensure we're using the full visible range
+            // Get time slots using the same logic as the display
             const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-            const endTime = localStorage.getItem('timetableEndTime') || '19:00';  // Use full day range
+            const endTime = localStorage.getItem('timetableEndTime') || '13:00';
             const timeSlots = getDynamicTimeSlots(startTime, endTime);
             
-            // Format time slots exactly like on screen - preserving exact format
+            // Format time slots exactly like on screen
             const formattedTimeSlots = timeSlots.map(slot => {
-                // Keep the original format instead of modifying it
+                const [start, end] = slot.split('-');
+                // Keep the format exactly as in the display
                 return slot;
             });
             
-            // Add debugging for time slots only (remove reference to undefined sessionEntries)
-            console.log("Generated time slots:", timeSlots);
-            console.log("Working with entries:", window.timetableEntries ? window.timetableEntries.length : 0);
-            
             // Create headers row with better formatting
-            const headerRow = [`Day`, `Session`];
+            const headerRow = ['Day', 'Session'];
             formattedTimeSlots.forEach(slot => {
-                // Format header cells exactly like on screen
                 const [start, end] = slot.split('-');
-                headerRow.push(`${start}\n${end}`);
+                // Format with arrow to clearly show start→end relationship
+                headerRow.push(`${start} → ${end}`);
             });
             
-            // Rest of the function remains unchanged...
+            // Prepare data for autoTable
+            const tableData = [];
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            const sessions = ['2021', '2022', '2023', '2024'];
+            
+            // Prepare cell height and width options
+            const cellOptions = {
+                styles: {
+                    cellPadding: 2,
+                    fontSize: 9
+                },
+                headStyles: {
+                    fillColor: [56, 142, 60],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold'
+                },
+                columnStyles: {
+                    0: { // Day column
+                        fillColor: [56, 142, 60],
+                        textColor: [255, 255, 255],
+                        fontStyle: 'bold'
+                    }
+                },
+                didParseCell: styleTableCells
+            };
+            
+            // Generate table data using same logic as display
+            const entries = window.timetableEntries || [];
+            
+            days.forEach(day => {
+                const dayEntries = entries.filter(entry => entry.day === day);
+                
+                sessions.forEach((session, sessionIndex) => {
+                    const row = [];
+                    
+                    // Add day only for first session of each day
+                    if (sessionIndex === 0) {
+                        row.push(day);
+                    } else {
+                        row.push('');
+                    }
+                    
+                    // Add session
+                    row.push(session);
+                    
+                    // Filter entries for this session
+                    const sessionEntries = dayEntries.filter(entry => entry.session === session);
+                    
+                    // Process each time slot
+                    let skipCells = 0;
+                    for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+                        if (skipCells > 0) {
+                            skipCells--;
+                            row.push(''); // Push empty string for skipped cells for proper alignment
+                            continue;
+                        }
+                        
+                        const timeSlot = timeSlots[slotIndex];
+                        const [slotStart, slotEnd] = timeSlot.split('-');
+                        
+                        const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
+                        
+                        if (entry) {
+                            // Calculate how many slots this entry spans
+                            const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                            const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                            
+                            // Calculate how many half-hour slots this covers
+                            const slotSpan = Math.max(1, Math.ceil((entryEndMins - entryStartMins) / 30));
+                            
+                            // Add the course code to the cell
+                            row.push(entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode);
+                            
+                            // Set colSpan for this cell (will be processed in didDrawCell)
+                            if (slotSpan > 1) {
+                                const lastCell = row[row.length - 1];
+                                row[row.length - 1] = {
+                                    content: lastCell,
+                                    colSpan: slotSpan,
+                                    isLab: entry.isLab,
+                                    rowSpan: 1,
+                                    session: session
+                                };
+                                skipCells = slotSpan - 1;
+                            }
+                        } else {
+                            row.push('');
+                        }
+                    }
+                    
+                    tableData.push(row);
+                });
+            });
+            
+            // Create the PDF table with properly configured options
+            doc.autoTable({
+                head: [headerRow],
+                body: tableData,
+                startY: 25,
+                margin: { top: 25, left: margin, right: margin, bottom: margin },
+                styles: cellOptions.styles,
+                headStyles: cellOptions.headStyles,
+                didParseCell: function(data) {
+                    // Style the cells based on content
+                    if (data.section === 'body') {
+                        // First column (day)
+                        if (data.column.index === 0 && data.cell.text && data.cell.text.length > 0) {
+                            data.cell.styles.fillColor = [56, 142, 60];
+                            data.cell.styles.textColor = [255, 255, 255];
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                        
+                        // Second column (session)
+                        if (data.column.index === 1) {
+                            data.cell.styles.fillColor = [232, 245, 233];
+                            data.cell.styles.textColor = [0, 0, 0];
+                        }
+                        
+                        // Course cells
+                        if (data.column.index > 1 && data.cell.text && data.cell.text.length > 0) {
+                            const session = data.row.cells[1].text;
+                            const isLab = data.cell.text[0] && data.cell.text[0].includes('Lab');
+                            
+                            if (isLab) {
+                                data.cell.styles.fillColor = [255, 248, 225]; // Light yellow for labs
+                                data.cell.styles.fontStyle = 'italic';
+                            } else {
+                                // Style based on session, matching the display color scheme
+                                switch(session) {
+                                    case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
+                                    case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
+                                    case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
+                                    case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
+                                    default: data.cell.styles.fillColor = [240, 240, 240];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Save the PDF with a proper filename
+            doc.save('Timetable_Fall_2024.pdf');
+            
         }).catch(error => {
             console.error("Error generating PDF:", error);
             alert("PDF generation failed: " + error.message);
@@ -1557,6 +1697,10 @@ function renderTimetable(entries) {
                     
                     // Empty cell - no entry for this time slot
                     const cell = document.createElement('td');
+                    cell.innerHTML = '&nbsp;';
+                    cell.style.border = '1px solid #ddd';
+                    cell.style.minWidth = '60px'; // Ensure minimum width
+                    cell.style.height = '30px'; // Ensure minimum height
                     row.appendChild(cell);
                 }
             }
@@ -1724,6 +1868,9 @@ function renderEmptyTimetableGrid() {
             timeSlots.forEach(() => {
                 const cell = document.createElement('td');
                 cell.innerHTML = '&nbsp;';
+                cell.style.border = '1px solid #ddd';
+                cell.style.minWidth = '60px'; // Ensure minimum width
+                cell.style.height = '30px'; // Ensure minimum height
                 row.appendChild(cell);
             });
             
