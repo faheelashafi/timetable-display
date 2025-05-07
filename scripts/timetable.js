@@ -736,10 +736,12 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                 return;
             }
             
-            const doc = new jsPDF('p', 'mm', 'a4');
+            // Change orientation to landscape ('l')
+            const doc = new jsPDF('l', 'mm', 'a4'); // 'l' for landscape, 'p' for portrait
+            
             const pageWidth = doc.internal.pageSize.width;
             const pageHeight = doc.internal.pageSize.height;
-            const margin = 10;
+            const margin = 10; // You might want a smaller margin for landscape if needed
             
             doc.setFontSize(14);
             doc.setFont('helvetica', 'bold');
@@ -760,11 +762,7 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
             const sessions = ['2024', '2023', '2022', '2021'];
             
-            const timeSlots = [
-                '01:00-01:30', '01:30-02:00', '02:00-02:30', '02:30-03:00', '03:00-03:30',
-                '03:30-04:00', '04:00-04:30', '04:30-05:00', '05:00-05:30', '05:30-06:00', 
-                '06:00-06:30', '06:30-07:00'
-            ];
+            const timeSlots = getDynamicTimeSlots("08:00", "17:00");
             
             const scheduleHeader = ['Day', 'Session', ...timeSlots];
             const scheduleData = [];
@@ -783,45 +781,104 @@ function generatePDF(entriesFromCaller) { // Accept entries as a parameter
                     const daySessionEntries = entries.filter(entry => 
                         entry.day === day && entry.session === session);
                     
-                    // LOGGING: Check filtered entries for the current day and session
-                    console.log(`[PDF GRID] Day: ${day}, Session: ${session}. Filtered ${daySessionEntries.length} entries.`);
+                    console.log(`[PDF GRID] Day: ${day}, Session: ${session}. Found ${daySessionEntries.length} entries.`);
                     
-                    for (let i = 0; i < timeSlots.length; i++) {
-                        let cellContent = '';
-                        const currentPdfTimeSlot = timeSlots[i];
+                    let slotIndex = 0;
+                    while (slotIndex < timeSlots.length) {
+                        const timeSlot = timeSlots[slotIndex];
+                        let entryForSlot = null;
                         
                         for (const entry of daySessionEntries) {
-                            // LOGGING: Check each entry against the current PDF time slot
-                            const isMatch = timeSlotMatches(currentPdfTimeSlot, entry.startTime, entry.endTime);
-                            console.log(`[PDF CELL] Slot: ${currentPdfTimeSlot}, Entry: ${entry.courseCode} (${entry.startTime}-${entry.endTime}), Day: ${entry.day}, Session: ${entry.session}. Match returned: ${isMatch}`);
-                            if (isMatch) {
-                                cellContent = entry.courseCode + (entry.isLab ? ' Lab' : '');
-                                console.log(`[PDF CELL] ✓ MATCH FOUND: Placing "${cellContent}" in Slot ${currentPdfTimeSlot}`);
-                                break; 
+                            if (timeSlotMatches(timeSlot, entry.startTime, entry.endTime)) {
+                                entryForSlot = entry;
+                                break;
                             }
                         }
-                        row.push(cellContent);
+                        
+                        if (entryForSlot) {
+                            let cellContent = entryForSlot.courseCode + (entryForSlot.isLab ? ' Lab' : '');
+                            
+                            let colspan = 1;
+                            
+                            const entryStartMins = convertToMinutes(normalizeTimeFormat(entryForSlot.startTime));
+                            const entryEndMins = convertToMinutes(normalizeTimeFormat(entryForSlot.endTime));
+                            
+                            for (let nextSlot = slotIndex + 1; nextSlot < timeSlots.length; nextSlot++) {
+                                const [nextSlotStart, nextSlotEnd] = timeSlots[nextSlot].split('-');
+                                
+                                const timeMap = {
+                                    '01:00': '13:00', '01:30': '13:30', '02:00': '14:00', '02:30': '14:30',
+                                    '03:00': '15:00', '03:30': '15:30', '04:00': '16:00', '04:30': '16:30',
+                                    '05:00': '17:00', '05:30': '17:30', '06:00': '18:00', '06:30': '18:30', 
+                                    '07:00': '19:00'
+                                };
+                                
+                                const mappedNextEnd = timeMap[nextSlotEnd] || nextSlotEnd;
+                                const nextSlotEndMins = convertToMinutes(mappedNextEnd);
+                                
+                                if (entryEndMins > nextSlotEndMins - 15) {
+                                    colspan++;
+                                } else {
+                                    break;
+                                }
+                            }
+                            
+                            console.log(`Course ${cellContent} spans ${colspan} slots (${entryForSlot.startTime}-${entryForSlot.endTime})`);
+                            
+                            const cellStyles = {
+                                halign: 'center',
+                                valign: 'middle',
+                                cellWidth: 'wrap',
+                                overflow: 'linebreak'
+                            };
+                            
+                            if (entryForSlot.isLab) {
+                                cellStyles.fillColor = [255, 248, 225];
+                                cellStyles.textColor = [0, 0, 0];
+                                cellStyles.fontStyle = 'italic';
+                            } else {
+                                switch(session) {
+                                    case '2021': cellStyles.fillColor = [242, 239, 255]; break;
+                                    case '2022': cellStyles.fillColor = [232, 247, 232]; break;
+                                    case '2023': cellStyles.fillColor = [231, 244, 255]; break;
+                                    case '2024': cellStyles.fillColor = [255, 251, 235]; break;
+                                }
+                            }
+                            
+                            row.push({ content: cellContent, colSpan: colspan, styles: cellStyles });
+                            slotIndex += colspan;
+                        } else {
+                            row.push('');
+                            slotIndex++;
+                        }
                     }
+                    
                     scheduleData.push(row);
                 });
             });
-
-            // LOGGING: Check the final data structure for the main grid
-            console.log("generatePDF: Final scheduleData for main grid:", JSON.parse(JSON.stringify(scheduleData)));
 
             doc.autoTable({
                 head: [scheduleHeader],
                 body: scheduleData,
                 startY: startY,
                 styles: {
-                    cellPadding: 2,
-                    fontSize: 8,
-                    overflow: 'linebreak',
-                    halign: 'center'
+                    cellPadding: 1, // Reduced cell padding for more space
+                    fontSize: 7,    // Slightly reduced font size for cells
+                    overflow: 'linebreak', // Allow text to wrap if still necessary
+                    halign: 'center',
+                    valign: 'middle'
                 },
                 headStyles: {
                     fillColor: [56, 142, 60],
-                    textColor: [255, 255, 255]
+                    textColor: [255, 255, 255],
+                    fontSize: 6, // Reduced font size for header time slots
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { cellWidth: 15 }, // Day column
+                    1: { cellWidth: 15 }, // Session column
+                    // Time slot columns will take up remaining space
                 },
                 didParseCell: function(data) {
                     if (data.section === 'body' && data.column.index === 0 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
@@ -921,9 +978,12 @@ function timeSlotMatches(timeSlot, startTime, endTime) {
     const [slotStartStr, slotEndStr] = timeSlot.split('-');
     const normalizedEntryStartTime = normalizeTimeFormat(startTime);
     const normalizedEntryEndTime = normalizeTimeFormat(endTime);
+    
+    // Get minutes for easier comparison
     const entryStartMins = convertToMinutes(normalizedEntryStartTime);
     const entryEndMins = convertToMinutes(normalizedEntryEndTime);
     
+    // Map for display slots (PM hours)
     const timeMap = {
         '01:00': '13:00', '01:30': '13:30', 
         '02:00': '14:00', '02:30': '14:30',
@@ -934,17 +994,15 @@ function timeSlotMatches(timeSlot, startTime, endTime) {
         '07:00': '19:00'
     };
 
-    const mappedPdfSlotStart = timeMap[slotStartStr] || slotStartStr;
-    const mappedPdfSlotEnd = timeMap[slotEndStr] || slotEndStr;
-    const pdfSlotStartMins = convertToMinutes(mappedPdfSlotStart);
-    const pdfSlotEndMins = convertToMinutes(mappedPdfSlotEnd);
-
-    const isMatch = (entryStartMins < pdfSlotEndMins && entryEndMins > pdfSlotStartMins);
+    // Check if we need mapping (only for PM display hours)
+    const mappedSlotStart = timeMap[slotStartStr] || slotStartStr;
+    const mappedSlotEnd = timeMap[slotEndStr] || slotEndStr;
     
-    // LOGGING: Clear log for timeSlotMatches
-    console.log(`  [timeSlotMatches] Comparing: PDF Slot "${timeSlot}" (mapped to ${mappedPdfSlotStart}-${mappedPdfSlotEnd} => ${pdfSlotStartMins}-${pdfSlotEndMins} mins) WITH Entry "${startTime}-${endTime}" (normalized to ${normalizedEntryStartTime}-${normalizedEntryEndTime} => ${entryStartMins}-${entryEndMins} mins). Result: ${isMatch}`);
+    const slotStartMins = convertToMinutes(mappedSlotStart);
+    const slotEndMins = convertToMinutes(mappedSlotEnd);
     
-    return isMatch;
+    // Entry overlaps with slot if: entry starts before/at slot end AND entry ends after/at slot start
+    return (entryStartMins < slotEndMins && entryEndMins > slotStartMins);
 }
 
 function getSessionName(session) {
