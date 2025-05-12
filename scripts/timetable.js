@@ -915,7 +915,12 @@ async function addTimetableEntry(entry) {
             }
         }
         
+        // Ensure entry has a timestamp to help with ordering
+        entry.timestamp = new Date().toISOString();
+        
+        // Add to Firestore and get the document reference
         const docRef = await addDoc(collection(window.db, "timetableEntries"), entry);
+        console.log(`Entry added with ID: ${docRef.id}`);
         return { success: true, id: docRef.id };
     } catch (error) {
         handleError(error, "addTimetableEntry");
@@ -1068,21 +1073,25 @@ function initializeSessionDropdown() {
 // Make it available globally
 window.initializeSessionDropdown = initializeSessionDropdown;
 
-// Display entries in the admin panel (updated version)
+// Updated displayEntriesInAdmin function to ensure it always shows the provided entries
 async function displayEntriesInAdmin(entries) {
     const entriesList = document.getElementById('entriesList');
     if (!entriesList) {
+        console.error("Entries list element not found in DOM");
         return;
     }
 
     try {
-        // Always reload from Firestore to get the latest data
-        timetableEntries = entries || await getAllTimetableEntries();
+        // Use the provided entries array directly if available
+        const timetableEntries = entries || await getAllTimetableEntries();
 
-        entriesList.innerHTML = ''; // Clear existing entries
+        // Clear existing entries
+        entriesList.innerHTML = '';
+        
+        console.log(`Displaying ${timetableEntries.length} entries in admin panel`);
         
         // Add empty state message if no entries
-        if (timetableEntries.length === 0) {
+        if (!timetableEntries || timetableEntries.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
             emptyCell.colSpan = 5;
@@ -1128,11 +1137,26 @@ async function displayEntriesInAdmin(entries) {
             deleteBtn.className = 'btn danger small';
             deleteBtn.textContent = 'Delete';
             deleteBtn.addEventListener('click', async function() {
-                try {
-                    await deleteTimetableEntry(entry.id);
-                    await loadAndDisplayEntries();
-                } catch (error) {
-                    handleError(error, "displayEntriesInAdmin - deleteBtn");
+                if (confirm(`Are you sure you want to delete this entry?\n${entry.courseCode} - ${entry.day} ${entry.startTime}-${entry.endTime}`)) {
+                    try {
+                        await deleteTimetableEntry(entry.id);
+                        
+                        // Remove from local array immediately for responsive UI
+                        if (window.timetableEntries) {
+                            window.timetableEntries = window.timetableEntries.filter(e => e.id !== entry.id);
+                            // Refresh display without fetching
+                            displayEntriesInAdmin(window.timetableEntries);
+                            // Update stats
+                            if (typeof updateStats === 'function') {
+                                updateStats(window.timetableEntries);
+                            }
+                        }
+                        
+                        // Also refresh from server to ensure sync
+                        setTimeout(() => loadAndDisplayEntries(), 500);
+                    } catch (error) {
+                        handleError(error, "displayEntriesInAdmin - deleteBtn");
+                    }
                 }
             });
             actionsCell.appendChild(deleteBtn);
@@ -1145,11 +1169,21 @@ async function displayEntriesInAdmin(entries) {
             
             entriesList.appendChild(row);
         });
+
+        // Add this code at the very end of the displayEntriesInAdmin function (before the closing brace)
+
+        try {
+            // Update session filter if it exists
+            if (typeof window.populateSessionFilter === 'function') {
+                window.populateSessionFilter();
+            }
+        } catch (error) {
+            console.error("Error updating session filter:", error);
+        }
     } catch (error) {
         handleError(error, "displayEntriesInAdmin");
     }
 }
-
 
 // Add this function to scripts/timetable.js
 async function loadAndDisplayEntries() {
@@ -1589,6 +1623,9 @@ function setupEventHandlers() {
     
     // Set up handlers for suggestion list items
     setupSuggestionHandlers();
+
+    // Add this line to the end of the setupEventHandlers function (before the closing brace)
+    setupEntryFilters();
 }
 
 // Properly define the renderTimetable function globally
@@ -2024,6 +2061,7 @@ async function handleFormSubmit(e) {
     const loadingEl = showLoading("Adding entries...");
     
     let addedEntries = 0;
+    const newEntryObjects = []; // Track newly created entries for immediate display
     
     // Log for debugging
     console.log("Adding entries with department:", department);
@@ -2048,6 +2086,12 @@ async function handleFormSubmit(e) {
       if (result.success) {
         addedEntries++;
         
+        // Add the newly created entry (with Firestore ID) to our array for immediate display
+        newEntryObjects.push({
+          id: result.id,
+          ...entry
+        });
+        
         // Add to suggestion arrays for autocomplete
         dataManager.addItem(dataManager.keys.teacherNames, teacherName);
         dataManager.addItem(dataManager.keys.venues, venue);
@@ -2056,14 +2100,33 @@ async function handleFormSubmit(e) {
       }
     }
     
+    // Update the local entries cache with the new entries
+    if (window.timetableEntries && Array.isArray(window.timetableEntries)) {
+      window.timetableEntries = [...window.timetableEntries, ...newEntryObjects];
+    } else {
+      window.timetableEntries = newEntryObjects;
+    }
+    
+    // Immediately display the updated entries
+    if (typeof displayEntriesInAdmin === 'function') {
+      displayEntriesInAdmin(window.timetableEntries);
+    }
+    
+    // Update stats with new entry count
+    if (typeof updateStats === 'function') {
+      updateStats(window.timetableEntries);
+    }
+    
     hideLoading();
     showToastMessage(`Added ${addedEntries} entries successfully.`, 'success');
     
     // Reset form after submission
     document.getElementById('timetableForm').reset();
     
-    // IMPORTANT: Refresh the displayed entries immediately
-    await loadAndDisplayEntries();
+    // Also refresh from server to ensure full synchronization
+    setTimeout(() => {
+      loadAndDisplayEntries();
+    }, 500);
     
   } catch (error) {
     hideLoading();
@@ -2228,4 +2291,123 @@ function setupAndVerifyDepartmentEntries() {
   
   // Run the verification
   setTimeout(verifyDepartments, 1000); // Give Firebase time to initialize fully
+}
+
+// Add this function to handle entry filtering
+function setupEntryFilters() {
+    const searchInput = document.getElementById('entriesSearch');
+    const deptFilter = document.getElementById('deptFilter');
+    const sessionFilter = document.getElementById('sessionFilter');
+    const dayFilter = document.getElementById('dayFilter');
+    const resetFiltersBtn = document.getElementById('resetFilters');
+    
+    if (!searchInput || !deptFilter || !sessionFilter || !dayFilter || !resetFiltersBtn) {
+        console.log("Filter elements not found, skipping filter setup");
+        return;
+    }
+    
+    // Populate the session filter with available sessions
+    function populateSessionFilter() {
+        // Clear existing options except the first one
+        while (sessionFilter.options.length > 1) {
+            sessionFilter.remove(1);
+        }
+        
+        // Get unique sessions from entries
+        const entries = window.allTimetableEntries || [];
+        const uniqueSessions = [...new Set(entries.map(entry => entry.session))].sort((a, b) => b - a); // Newest first
+        
+        // Add session options
+        uniqueSessions.forEach(session => {
+            const option = document.createElement('option');
+            option.value = session;
+            option.textContent = `Session ${session} (${getSessionName(session)})`;
+            sessionFilter.appendChild(option);
+        });
+    }
+    
+    // Apply filters to entries
+    function applyFilters() {
+        const entries = window.allTimetableEntries || [];
+        if (entries.length === 0) return;
+        
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const department = deptFilter.value;
+        const session = sessionFilter.value;
+        const day = dayFilter.value;
+        
+        // Filter entries based on criteria
+        const filteredEntries = entries.filter(entry => {
+            // Search term filter (check multiple fields)
+            const matchesSearch = searchTerm === '' || 
+                entry.courseCode?.toLowerCase().includes(searchTerm) || 
+                entry.courseName?.toLowerCase().includes(searchTerm) || 
+                entry.teacherName?.toLowerCase().includes(searchTerm) ||
+                entry.venue?.toLowerCase().includes(searchTerm);
+            
+            // Department filter
+            const matchesDept = department === '' || entry.department === department;
+            
+            // Session filter
+            const matchesSession = session === '' || entry.session === session;
+            
+            // Day filter
+            const matchesDay = day === '' || entry.day === day;
+            
+            return matchesSearch && matchesDept && matchesSession && matchesDay;
+        });
+        
+        // Display filtered entries
+        displayEntriesInAdmin(filteredEntries);
+        
+        // Update filter count
+        const totalCount = entries.length;
+        const filteredCount = filteredEntries.length;
+        
+        // Only show count if filtering is active
+        if (searchTerm || department || session || day) {
+            const countDisplay = document.createElement('div');
+            countDisplay.id = 'filter-count';
+            countDisplay.style.margin = '10px 0';
+            countDisplay.style.fontSize = '14px';
+            countDisplay.style.color = '#555';
+            countDisplay.textContent = `Showing ${filteredCount} of ${totalCount} entries`;
+            
+            // Remove existing count display if present
+            const existingCount = document.getElementById('filter-count');
+            if (existingCount) existingCount.remove();
+            
+            // Add new count display before the table
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) {
+                tableContainer.parentNode.insertBefore(countDisplay, tableContainer);
+            }
+        } else {
+            // Remove count display when no filters are active
+            const existingCount = document.getElementById('filter-count');
+            if (existingCount) existingCount.remove();
+        }
+    }
+    
+    // Reset filters
+    function resetFilters() {
+        searchInput.value = '';
+        deptFilter.selectedIndex = 0;
+        sessionFilter.selectedIndex = 0;
+        dayFilter.selectedIndex = 0;
+        applyFilters();
+    }
+    
+    // Set up event listeners
+    searchInput.addEventListener('input', applyFilters);
+    deptFilter.addEventListener('change', applyFilters);
+    sessionFilter.addEventListener('change', applyFilters);
+    dayFilter.addEventListener('change', applyFilters);
+    resetFiltersBtn.addEventListener('click', resetFilters);
+    
+    // Initial population of session filter
+    populateSessionFilter();
+    
+    // Make the function globally available
+    window.populateSessionFilter = populateSessionFilter;
 }

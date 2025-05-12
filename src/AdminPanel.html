@@ -743,6 +743,38 @@
                             <button onclick="window.verifyDepartments()" class="btn" style="background-color: #9C27B0; color: white;">Verify Departments</button>
                         </div>
                     </div>
+
+                    <!-- Add search and filter bar right after the card-header div -->
+                    <div class="search-filter-container" style="margin-bottom: 20px;">
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <input type="text" id="entriesSearch" placeholder="Search entries..." style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <select id="deptFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">All Departments</option>
+                                    <option value="cs">Computer Science & IT</option>
+                                    <option value="eng">Engineering</option>
+                                    <option value="pharm">Pharmacy & HND</option>
+                                </select>
+                                <select id="sessionFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">All Sessions</option>
+                                    <!-- Will be populated dynamically -->
+                                </select>
+                                <select id="dayFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                                    <option value="">All Days</option>
+                                    <option value="Monday">Monday</option>
+                                    <option value="Tuesday">Tuesday</option>
+                                    <option value="Wednesday">Wednesday</option>
+                                    <option value="Thursday">Thursday</option>
+                                    <option value="Friday">Friday</option>
+                                    <option value="Saturday">Saturday</option>
+                                    <option value="Sunday">Sunday</option>
+                                </select>
+                                <button id="resetFilters" class="btn" style="background-color: #607D8B; color: white;">Reset</button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="table-container">
                         <table class="table">
@@ -910,3 +942,4 @@
     </script>
 </body>
 </html>
+`
