@@ -26,6 +26,9 @@
         import { getFirestore, collection, getDocs, addDoc, setDoc, doc, 
                  deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         
+        // Add this to make the function globally available
+        window.setupAndVerifyDepartmentEntries = setupAndVerifyDepartmentEntries;
+
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DisplayTimetable initializing...");
             try {
@@ -74,6 +77,11 @@
                     
                     if (typeof window.setupRealtimeUpdates === 'function') {
                         window.setupRealtimeUpdates();
+                    }
+                    
+                    // Add this new function call
+                    if (typeof window.setupAndVerifyDepartmentEntries === 'function') {
+                        window.setupAndVerifyDepartmentEntries();
                     }
                     
                     console.log("DisplayTimetable initialization complete");

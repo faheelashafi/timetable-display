@@ -162,6 +162,10 @@ function handleGeneratePdf() {
       // Now actually generate the PDF
       const generatingEl = showLoading("Generating PDF...");
       try {
+        // Get fresh entries before generating PDF
+        const freshEntries = await getAllTimetableEntries();
+        window.allTimetableEntries = freshEntries; // Update the global state
+        
         await generatePDF(selectedDept);
         hideLoading();
         showToastMessage('PDF generated successfully!', 'success');
@@ -178,7 +182,7 @@ function handleGeneratePdf() {
   }
 }
 
-// Updated generatePDF function with department filtering
+// Updated generatePDF function to show all timetables first, then all course details
 async function generatePDF(department = 'all') {
   try {
     if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -257,9 +261,10 @@ async function generatePDF(department = 'all') {
     const endTime = localStorage.getItem('timetableEndTime') || '17:00';
     const timeSlots = getDynamicTimeSlots(startTime, endTime);
     
-    // Process each session
+    // Process each session - TIMETABLES SECTION
     let currentY = startY;
     
+    // First, render all timetables
     for (const session of sortedSessions) {
       // Create a grid for this session
       const sessionEntries = sessionGroups[session];
@@ -279,9 +284,57 @@ async function generatePDF(department = 'all') {
           { content: session, styles: { fillColor: [232, 245, 233] } }
         ];
         
-        // Add empty cells for time slots
+        // Track what's been rendered to avoid repetition
+        const renderedCells = {};
+        
+        // Add cells for each time slot
         for (let i = 0; i < timeSlots.length; i++) {
-          dayRow.push('');
+          const slot = timeSlots[i];
+          const [slotStart, slotEnd] = slot.split('-');
+          
+          // Skip if this slot is already handled by a previous multi-slot entry
+          const cellKey = `${day}-${i}`;
+          if (renderedCells[cellKey]) {
+            dayRow.push(''); // Push empty content for merged cells
+            continue;
+          }
+          
+          // Find entry for this slot - only match exact start time
+          const entry = sessionEntries.find(e => 
+            e.day === day && 
+            e.session === session &&
+            isEntryInTimeSlot(e, slotStart, 'exact')
+          );
+          
+          if (entry) {
+            // Calculate span based on duration
+            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+            const durationMinutes = entryEndMinutes - entryStartMinutes;
+            let span = Math.ceil(durationMinutes / 30); // Each slot is 30 minutes
+            
+            // Ensure minimum span of 1
+            if (span < 1) span = 1;
+            
+            // Mark the cells this entry spans as handled
+            for (let j = 1; j < span && (i + j) < timeSlots.length; j++) {
+              renderedCells[`${day}-${i + j}`] = true;
+            }
+            
+            // Add the course cell with appropriate colSpan
+            dayRow.push({
+              content: entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode,
+              colSpan: span,
+              styles: {
+                fillColor: entry.isLab ? [255, 248, 225] : 
+                            entry.department === 'cs' ? [225, 245, 254] : 
+                            entry.department === 'eng' ? [232, 245, 233] : 
+                            entry.department === 'pharm' ? [255, 243, 224] : [245, 245, 245]
+              }
+            });
+          } else {
+            dayRow.push(''); // Empty cell
+          }
         }
         
         tableBody.push(dayRow);
@@ -312,60 +365,41 @@ async function generatePDF(department = 'all') {
         columnStyles: {
           0: { cellWidth: 20 },
           1: { cellWidth: 15 }
-        },
-        didDrawCell: function(data) {
-          // Find entries for this cell's day and time slot
-          if (data.row.index >= 0 && data.column.index >= 2) {
-            const day = days[data.row.index];
-            const slot = timeSlots[data.column.index - 2]; // -2 for day and session columns
-            const [slotStart, slotEnd] = slot.split('-');
-            
-            // Find entries that overlap with this slot
-            const cellEntries = sessionEntries.filter(entry => 
-              entry.day === day && 
-              isEntryInTimeSlot(entry, slotStart)
-            );
-            
-            if (cellEntries.length > 0) {
-              const entry = cellEntries[0]; // Take the first one
-              
-              // Set cell content
-              const code = entry.courseCode;
-              const isLab = entry.isLab ? "(Lab)" : "";
-              
-              // Draw text in the cell
-              const textX = data.cell.x + 2;
-              const textY = data.cell.y + 4;
-              
-              // Set background color based on department
-              if (entry.isLab) {
-                doc.setFillColor(255, 248, 225);
-              } else if (entry.department === 'cs') {
-                doc.setFillColor(225, 245, 254);
-              } else if (entry.department === 'eng') {
-                doc.setFillColor(232, 245, 233);
-              } else if (entry.department === 'pharm') {
-                doc.setFillColor(255, 243, 224);
-              } else {
-                doc.setFillColor(245, 245, 245);
-              }
-              
-              // Fill cell
-              doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-              
-              // Draw text
-              doc.setTextColor(0);
-              doc.setFontSize(8);
-              doc.text(`${code}${isLab}`, textX, textY);
-            }
-          }
         }
       });
       
       // Update current Y position for next session
       currentY = doc.lastAutoTable.finalY + 15;
       
-      // Add entries table below the timetable grid
+      // Add page break if near bottom of page
+      if (currentY > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        currentY = 20;
+      }
+    }
+    
+    // Add all course details - DETAILS SECTION
+    // Start on a new page for course details
+    doc.addPage();
+    currentY = 20;
+    
+    // Add header for the details section
+    doc.setFontSize(14);
+    doc.setTextColor(44, 62, 80);
+    doc.text("Course Details", 14, currentY);
+    currentY += 10;
+    
+    // Now process each session for course details
+    for (const session of sortedSessions) {
+      const sessionEntries = sessionGroups[session];
+      
+      // Add session heading for details
+      doc.setFontSize(12);
+      doc.setTextColor(44, 62, 80);
+      doc.text(`Session ${session} (${getSessionName(session)})`, 14, currentY);
+      currentY += 7;
+      
+      // Add entries table for this session
       const courseHeader = [
         ['Course Code', 'Course Name', 'Credit Hrs.', 'Teacher Name', 'Venue']
       ];
@@ -398,7 +432,7 @@ async function generatePDF(department = 'all') {
       });
       
       // Update Y position and add page break if needed
-      currentY = doc.lastAutoTable.finalY + 20;
+      currentY = doc.lastAutoTable.finalY + 10;
       
       if (currentY > doc.internal.pageSize.getHeight() - 20 && session !== sortedSessions[sortedSessions.length - 1]) {
         doc.addPage();
@@ -516,8 +550,8 @@ function convertToMinutes(timeString) {
     return (hours * 60) + minutes;
 }
 
-// Improved isEntryInTimeSlot function to correctly map courses to slots
-function isEntryInTimeSlot(entry, slotStart) {
+// Fix the isEntryInTimeSlot function to handle both exact start time and time spans
+function isEntryInTimeSlot(entry, slotStart, mode = 'exact') {
     // Normalize times for consistency
     const entryStartTime = normalizeTimeFormat(entry.startTime);
     const entryEndTime = normalizeTimeFormat(entry.endTime);
@@ -526,14 +560,20 @@ function isEntryInTimeSlot(entry, slotStart) {
     const entryStartMinutes = convertToMinutes(entryStartTime);
     const entryEndMinutes = convertToMinutes(entryEndTime);
     const slotStartMinutes = convertToMinutes(slotStart);
+    const slotEndMinutes = slotStartMinutes + 30; // Default 30-minute slots
     
-    // Get slot end time (assuming 30 minute slots)
-    const slotEndMinutes = slotStartMinutes + 30;
-    
-    // Check if entry overlaps with this time slot:
-    // 1. Entry starts before or at slot end AND
-    // 2. Entry ends after or at slot start
-    return (entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes);
+    if (mode === 'exact') {
+        // For finding the starting slot, check exact match with start time
+        return entryStartMinutes === slotStartMinutes;
+    } else if (mode === 'span') {
+        // For calculating spans, check if entry covers this time slot
+        // Entry must start before or at slot start AND end after slot start
+        return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
+    } else {
+        // For overlap detection (used elsewhere)
+        // Check if there's any overlap between entry and slot
+        return (entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes);
+    }
 }
 
 // Modify the getAllTimeSlots function to use 17:00 (5pm) as default end time
@@ -1317,7 +1357,7 @@ function findEntryForTimeSlot(entries, slotStart, slotEnd) {
   return entry;
 }
 
-// Modified setupRealtimeUpdates function to avoid firestore reference error
+// Replace both setupRealtimeUpdates functions with this single implementation
 function setupRealtimeUpdates() {
   try {
     // Modified to handle missing firestore reference
@@ -1361,9 +1401,6 @@ function setupRealtimeUpdates() {
       if (statusIndicator) statusIndicator.textContent = 'Connected';
       return;
     }
-    
-    // FIXED: Don't rely on global firestore - use the imported functions directly from the module
-    // This avoids the ReferenceError: firestore is not defined
     
     // Check if we have access to onSnapshot
     if (!window.onSnapshotImport) {
@@ -1421,7 +1458,7 @@ function setupRealtimeUpdates() {
             ...doc.data()
           }));
           
-          // Store all entries in window for reference
+          // Always store all entries in window for reference - critical for PDF generation
           window.allTimetableEntries = entries;
           
           // Update display based on page
@@ -1598,33 +1635,27 @@ function renderTimetable(entries) {
             
             // Process each entry for this day/session
             daySessionEntries.forEach(entry => {
-                // Calculate which time slots this entry spans
-                const entryStartMins = convertToMinutes(entry.startTime);
-                const entryEndMins = convertToMinutes(entry.endTime);
-                
+                // Find which time slot the entry starts in
                 let firstSlotIndex = -1;
-                let slotSpan = 0;
-                
-                // Find which slots this entry covers
-                timeSlots.forEach((slot, slotIndex) => {
-                    const [slotStart, slotEnd] = slot.split('-');
-                    const slotStartMins = convertToMinutes(slotStart);
-                    const slotEndMins = convertToMinutes(slotEnd);
-                    
-                    // Check if this entry overlaps with this slot
-                    if (entryStartMins < slotEndMins && entryEndMins > slotStartMins) {
-                        if (firstSlotIndex === -1) {
-                            firstSlotIndex = slotIndex;
-                        }
-                        slotSpan++;
-                        
-                        // Mark this cell as handled
-                        const cellKey = `${rowIndex}-${slotIndex + 2}`; // +2 for day and session columns
-                        handledCells[cellKey] = true;
+                for (let i = 0; i < timeSlots.length; i++) {
+                    const [slotStart] = timeSlots[i].split('-');
+                    if (isEntryInTimeSlot(entry, slotStart, 'exact')) {
+                        firstSlotIndex = i;
+                        break;
                     }
-                });
+                }
                 
-                if (firstSlotIndex !== -1 && slotSpan > 0) {
+                if (firstSlotIndex !== -1) {
+                    // Calculate how many slots this entry spans
+                    let slotSpan = 0;
+                    const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+                    const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+                    const durationMinutes = entryEndMinutes - entryStartMinutes;
+                    slotSpan = Math.ceil(durationMinutes / 30); // Each slot is 30 minutes
+                    
+                    // Ensure minimum span of 1
+                    if (slotSpan < 1) slotSpan = 1;
+                    
                     // Skip if column index is beyond table width
                     const firstCellIndex = firstSlotIndex + 2; // +2 for day and session columns
                     if (firstCellIndex >= row.cells.length) {
@@ -1635,6 +1666,12 @@ function renderTimetable(entries) {
                     const firstCell = row.cells[firstCellIndex];
                     
                     if (firstCell) {
+                        // Mark cells as handled to avoid repetition
+                        for (let i = 0; i < slotSpan; i++) {
+                            const cellKey = `${rowIndex}-${firstSlotIndex + i + 2}`;
+                            handledCells[cellKey] = true;
+                        }
+                        
                         // Remove other cells this entry spans, but check boundaries
                         for (let i = 1; i < slotSpan && (firstCellIndex + 1) < row.cells.length; i++) {
                             const cellToRemove = row.cells[firstCellIndex + 1]; // Always remove the next cell
@@ -1646,12 +1683,12 @@ function renderTimetable(entries) {
                         // Set colspan for the first cell
                         firstCell.colSpan = slotSpan;
                         
-                        // Style the cell
+                        // Style the cell and add content
                         firstCell.textContent = entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode;
                         firstCell.title = `${entry.courseName} (${entry.teacherName || 'TBD'})`;
                         firstCell.className = 'course-cell';
                         
-                        // Style cell based on whether it's a lab or regular course and department
+                        // Style cell based on type and department
                         if (entry.isLab) {
                             firstCell.style.backgroundColor = '#fff8e1'; // Light yellow
                             firstCell.style.fontStyle = 'italic';
@@ -2025,6 +2062,9 @@ async function handleFormSubmit(e) {
     // Reset form after submission
     document.getElementById('timetableForm').reset();
     
+    // IMPORTANT: Refresh the displayed entries immediately
+    await loadAndDisplayEntries();
+    
   } catch (error) {
     hideLoading();
     handleError(error, "handleFormSubmit");
@@ -2104,3 +2144,88 @@ function verifyDepartments() {
 
 // Make it available
 window.verifyDepartments = verifyDepartments;
+
+// Fix issue with department filtering in the DisplayTimetable page
+function setupAndVerifyDepartmentEntries() {
+  console.log("Verifying department entries...");
+  const urlParams = new URLSearchParams(window.location.search);
+  const department = urlParams.get('dept');
+  
+  if (!department) {
+    console.log("No department specified in URL");
+    return;
+  }
+  
+  console.log(`Department from URL: ${department}`);
+  
+  // Function to check department data
+  const verifyDepartments = async () => {
+    try {
+      // Get all entries directly from Firestore to ensure fresh data
+      const entries = await getAllTimetableEntries();
+      
+      if (entries.length === 0) {
+        console.log("No entries found in database");
+        showToastMessage("No timetable entries found. Please add some entries first.", "warning");
+        return;
+      }
+      
+      const departmentCounts = {
+        cs: 0,
+        eng: 0,
+        pharm: 0,
+        undefined: 0,
+        null: 0,
+        other: 0
+      };
+      
+      entries.forEach(entry => {
+        if (entry.department === undefined) departmentCounts.undefined++;
+        else if (entry.department === null) departmentCounts.null++;
+        else if (['cs', 'eng', 'pharm'].includes(entry.department)) departmentCounts[entry.department]++;
+        else departmentCounts.other++;
+      });
+      
+      console.log("Department counts:", departmentCounts);
+      
+      // Filter by department
+      const filteredEntries = entries.filter(entry => entry.department === department);
+      console.log(`Filtered from ${entries.length} to ${filteredEntries.length} entries for ${department}`);
+      
+      if (filteredEntries.length === 0) {
+        // No entries for this department, show message
+        const messageEl = document.createElement('div');
+        messageEl.style.cssText = 'padding: 20px; text-align: center; margin: 20px; background: #f8f9fa; border-radius: 4px;';
+        messageEl.innerHTML = `
+          <h3>No Timetable Entries</h3>
+          <p>There are no entries available for the ${department} department.</p>
+          <p>Please add some entries from the admin panel first.</p>
+          <p><a href="AdminPanel.html">Go to Admin Panel</a></p>
+        `;
+        
+        const container = document.getElementById('timetable-container');
+        if (container) {
+          container.innerHTML = '';
+          container.appendChild(messageEl);
+        }
+        
+        // Show toast message
+        showToastMessage(`No entries found for ${department} department`, "info");
+      } else {
+        // Render the timetable with filtered entries
+        window.timetableEntries = filteredEntries;
+        if (typeof renderTimetable === 'function') {
+          renderTimetable(filteredEntries);
+        } else {
+          console.error("renderTimetable function not available");
+        }
+      }
+    } catch (error) {
+      console.error("Error verifying departments:", error);
+      showToastMessage("Error loading timetable data", "error");
+    }
+  };
+  
+  // Run the verification
+  setTimeout(verifyDepartments, 1000); // Give Firebase time to initialize fully
+}
