@@ -119,76 +119,99 @@ function handleLogout() {
   }
 }
 
-// Add handleGeneratePdf function 
+// Improved PDF generation function with department selection
+
 function handleGeneratePdf() {
-  const loadingEl = showLoading("Generating PDF...");
+  const loadingEl = showLoading("Preparing PDF options...");
   
   try {
-    generatePDF();
-  } catch (error) {
-    handleError(error, "handleGeneratePdf");
-  } finally {
-    hideLoading();
-  }
-}
-
-// Add displayStoredData function
-function displayStoredData() {
-  try {
-    const entries = window.timetableEntries || [];
-    if (entries.length === 0) {
-      alert("No entries to display");
-      return;
-    }
+    // Create a department selection dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:10000;';
     
-    // Create a formatted display
-    let output = `Total Entries: ${entries.length}\n\n`;
-    entries.forEach((entry, i) => {
-      output += `Entry ${i+1}: ${entry.day} - ${entry.session} - ${entry.courseCode} - ${entry.startTime}-${entry.endTime}\n`;
+    const dialogContent = document.createElement('div');
+    dialogContent.style.cssText = 'background:white;padding:20px;border-radius:8px;width:400px;max-width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.2);';
+    dialogContent.innerHTML = `
+      <h3 style="margin-top:0;color:#4285f4;border-bottom:1px solid #eee;padding-bottom:10px;">Generate Timetable PDF</h3>
+      <p>Select department to generate PDF:</p>
+      <select id="pdfDeptSelect" style="width:100%;padding:10px;margin-bottom:20px;border:1px solid #ddd;border-radius:4px;">
+        <option value="all">All Departments</option>
+        <option value="cs">Computer Science & IT</option>
+        <option value="eng">Engineering</option>
+        <option value="pharm">Pharmacy & HND</option>
+      </select>
+      <div style="display:flex;justify-content:flex-end;gap:10px;">
+        <button id="cancelPdfBtn" style="padding:8px 16px;background:#f5f5f5;border:none;border-radius:4px;cursor:pointer;">Cancel</button>
+        <button id="generatePdfBtn" style="padding:8px 16px;background:#4285f4;color:white;border:none;border-radius:4px;cursor:pointer;">Generate PDF</button>
+      </div>
+    `;
+    
+    dialog.appendChild(dialogContent);
+    document.body.appendChild(dialog);
+    
+    // Handle dialog buttons
+    document.getElementById('cancelPdfBtn').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      hideLoading();
     });
     
-    console.log(output);
-    alert(output);
+    document.getElementById('generatePdfBtn').addEventListener('click', async () => {
+      const selectedDept = document.getElementById('pdfDeptSelect').value;
+      document.body.removeChild(dialog);
+      
+      // Now actually generate the PDF
+      const generatingEl = showLoading("Generating PDF...");
+      try {
+        await generatePDF(selectedDept);
+        hideLoading();
+        showToastMessage('PDF generated successfully!', 'success');
+      } catch (error) {
+        hideLoading();
+        handleError(error, "generatePDF");
+      }
+    });
+    
+    hideLoading();
   } catch (error) {
-    handleError(error, "displayStoredData");
+    hideLoading();
+    handleError(error, "handleGeneratePdf");
   }
 }
 
-// Add generatePDF function
-function generatePDF() {
+// Updated generatePDF function with department filtering
+async function generatePDF(department = 'all') {
   try {
-    // PDF generation requires jspdf and jspdf-autotable
-    if (!window.jspdf || !window.jspdf.jsPDF || !window.jspdf.jsPDF.autoTable) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
       throw new Error("PDF generation libraries not loaded");
     }
     
     const { jsPDF } = window.jspdf;
     
-    // Create a new PDF document
+    // Create document
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4'
     });
     
-    // Add title and header
-    const title = "Time Table Fall Semester 2024";
+    // Get all entries or filter by department
+    const allEntries = window.allTimetableEntries || [];
+    const entries = department === 'all' ? 
+      allEntries : 
+      allEntries.filter(e => e.department === department);
     
-    // Get department from URL if present
-    const urlParams = new URLSearchParams(window.location.search);
-    const department = urlParams.get('dept');
-    
-    // Set the department name
+    // Set the department name for header
     const departmentNames = {
       'cs': 'Computer Science & IT',
       'eng': 'Engineering',
-      'pharm': 'Pharmacy & HND'
+      'pharm': 'Pharmacy & HND',
+      'all': 'All Departments'
     };
     
-    const departmentName = department && departmentNames[department] 
-      ? departmentNames[department] 
-      : 'COMPUTER SCIENCE & INFORMATION TECHNOLOGY';
+    const departmentName = departmentNames[department] || 'All Departments';
     
+    // Add header information
+    const title = "Time Table Fall Semester 2024";
     const subheader = `DEPARTMENT OF ${departmentName.toUpperCase()}`;
     const universityName = "University of Chakwal";
     const semesterInfo = "BSIT -1st, 3rd, 5th, 7th Semester (Evening): 30-09-2024";
@@ -217,32 +240,240 @@ function generatePDF() {
     
     startY += 10;
     
-    // Rest of your PDF generation code...
-    
-    // Create a color map to assign unique colors to courses
-    const courseColorMap = {};
-    const predefinedColors = [
-        [230, 232, 250], // Lavender
-        [224, 242, 241], // Light Teal
-        [238, 232, 213], // Light Tan
-        [225, 245, 254], // Very Light Blue
-        // More colors...
-    ];
-
-    const entries = window.timetableEntries || [];
-    const allCourseCodes = [...new Set(entries.map(e => e.courseCode))];
-    
-    // Assign colors to each course
-    allCourseCodes.forEach((code, index) => {
-        courseColorMap[code] = predefinedColors[index % predefinedColors.length];
+    // Group entries by session for better organization
+    const sessionGroups = {};
+    entries.forEach(entry => {
+      if (!sessionGroups[entry.session]) {
+        sessionGroups[entry.session] = [];
+      }
+      sessionGroups[entry.session].push(entry);
     });
-
-    // Save the PDF
-    doc.save("timetable.pdf");
     
-    showToastMessage('PDF generated successfully!', 'success');
+    // Sort sessions in descending order (newest first)
+    const sortedSessions = Object.keys(sessionGroups).sort((a, b) => b - a);
+    
+    // Get time slots for calculating column spans
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
+    
+    // Process each session
+    let currentY = startY;
+    
+    for (const session of sortedSessions) {
+      // Create a grid for this session
+      const sessionEntries = sessionGroups[session];
+      
+      // Create grid header
+      const tableHeader = [
+        ['Day', 'Session', ...timeSlots]
+      ];
+      
+      // Add day rows
+      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      const tableBody = [];
+      
+      days.forEach(day => {
+        const dayRow = [
+          { content: day, styles: { fillColor: [56, 142, 60], textColor: [255, 255, 255], fontStyle: 'bold' } },
+          { content: session, styles: { fillColor: [232, 245, 233] } }
+        ];
+        
+        // Add empty cells for time slots
+        for (let i = 0; i < timeSlots.length; i++) {
+          dayRow.push('');
+        }
+        
+        tableBody.push(dayRow);
+      });
+      
+      // Add the session heading
+      doc.setFontSize(14);
+      doc.setTextColor(44, 62, 80);
+      doc.text(`Session ${session} (${getSessionName(session)})`, 14, currentY);
+      currentY += 7;
+      
+      // Add the timetable
+      doc.autoTable({
+        startY: currentY,
+        head: tableHeader,
+        body: tableBody,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [56, 142, 60],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          cellPadding: 2
+        },
+        bodyStyles: {
+          fontSize: 9,
+          cellPadding: 2
+        },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 15 }
+        },
+        didDrawCell: function(data) {
+          // Find entries for this cell's day and time slot
+          if (data.row.index >= 0 && data.column.index >= 2) {
+            const day = days[data.row.index];
+            const slot = timeSlots[data.column.index - 2]; // -2 for day and session columns
+            const [slotStart, slotEnd] = slot.split('-');
+            
+            // Find entries that overlap with this slot
+            const cellEntries = sessionEntries.filter(entry => 
+              entry.day === day && 
+              isEntryInTimeSlot(entry, slotStart)
+            );
+            
+            if (cellEntries.length > 0) {
+              const entry = cellEntries[0]; // Take the first one
+              
+              // Set cell content
+              const code = entry.courseCode;
+              const isLab = entry.isLab ? "(Lab)" : "";
+              
+              // Draw text in the cell
+              const textX = data.cell.x + 2;
+              const textY = data.cell.y + 4;
+              
+              // Set background color based on department
+              if (entry.isLab) {
+                doc.setFillColor(255, 248, 225);
+              } else if (entry.department === 'cs') {
+                doc.setFillColor(225, 245, 254);
+              } else if (entry.department === 'eng') {
+                doc.setFillColor(232, 245, 233);
+              } else if (entry.department === 'pharm') {
+                doc.setFillColor(255, 243, 224);
+              } else {
+                doc.setFillColor(245, 245, 245);
+              }
+              
+              // Fill cell
+              doc.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
+              
+              // Draw text
+              doc.setTextColor(0);
+              doc.setFontSize(8);
+              doc.text(`${code}${isLab}`, textX, textY);
+            }
+          }
+        }
+      });
+      
+      // Update current Y position for next session
+      currentY = doc.lastAutoTable.finalY + 15;
+      
+      // Add entries table below the timetable grid
+      const courseHeader = [
+        ['Course Code', 'Course Name', 'Credit Hrs.', 'Teacher Name', 'Venue']
+      ];
+      
+      const courseRows = sessionEntries
+        .filter((v, i, a) => a.findIndex(t => t.courseCode === v.courseCode) === i) // Unique courses
+        .sort((a, b) => a.courseCode.localeCompare(b.courseCode))
+        .map(entry => [
+          entry.courseCode,
+          entry.courseName,
+          entry.creditHours || '3',
+          entry.teacherName || '',
+          entry.venue || ''
+        ]);
+      
+      doc.autoTable({
+        startY: currentY,
+        head: courseHeader,
+        body: courseRows,
+        theme: 'plain',
+        headStyles: {
+          fillColor: [240, 240, 240],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          fontSize: 9
+        },
+        bodyStyles: {
+          fontSize: 9
+        },
+      });
+      
+      // Update Y position and add page break if needed
+      currentY = doc.lastAutoTable.finalY + 20;
+      
+      if (currentY > doc.internal.pageSize.getHeight() - 20 && session !== sortedSessions[sortedSessions.length - 1]) {
+        doc.addPage();
+        currentY = 20;
+      }
+    }
+    
+    // Add footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Add footer content
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      
+      // Add footer items
+      doc.text("1. Notice Board", 14, pageHeight - 20);
+      doc.text("2. Concerned Teachers", 14, pageHeight - 17);
+      doc.text("3. Concerned Labs", 14, pageHeight - 14);
+      doc.text("4. Chairman Office", 14, pageHeight - 11);
+      
+      // Right side footer
+      doc.text("Dr. Rashid Amin", pageWidth - 14, pageHeight - 20, { align: 'right' });
+      doc.text("Head of Department", pageWidth - 14, pageHeight - 17, { align: 'right' });
+      doc.text(`Department of ${department === 'pharm' ? 'Pharmacy & HND' : 'CS & IT'}`, pageWidth - 14, pageHeight - 14, { align: 'right' });
+      
+      // Add page number
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+    
+    // Save the PDF
+    doc.save(`timetable_${department}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    
+    return true;
   } catch (error) {
-    handleError(error, "generatePDF");
+    console.error("Error in generatePDF:", error);
+    throw error;
+  }
+}
+
+// Helper function to get session name
+function getSessionName(session) {
+  const currentYear = new Date().getFullYear();
+  const sessionYear = parseInt(session);
+  const diff = currentYear - sessionYear;
+  
+  if (diff === 0) return "1st Semester";
+  if (diff === 1) return "3rd Semester";
+  if (diff === 2) return "5th Semester";
+  if (diff === 3) return "7th Semester";
+  return `${diff * 2 + 1}th Semester`;
+}
+
+// Add displayStoredData function
+function displayStoredData() {
+  try {
+    const entries = window.timetableEntries || [];
+    if (entries.length === 0) {
+      alert("No entries to display");
+      return;
+    }
+    
+    // Create a formatted display
+    let output = `Total Entries: ${entries.length}\n\n`;
+    entries.forEach((entry, i) => {
+      output += `Entry ${i+1}: ${entry.day} - ${entry.session} - ${entry.courseCode} - ${entry.startTime}-${entry.endTime}\n`;
+    });
+    
+    console.log(output);
+    alert(output);
+  } catch (error) {
+    handleError(error, "displayStoredData");
   }
 }
 
@@ -1260,64 +1491,195 @@ function setupRealtimeUpdates() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log("Setting up event handlers on DOM load");
     setTimeout(setupEventHandlers, 500);
+});
     
-    // Check again after full page load to be extra safe
-    window.addEventListener('load', function() {
-        console.log("Setting up event handlers on window load");
-        setupEventHandlers();
-    });
+// Fix the window load event listener by separating it correctly
+window.addEventListener('load', function() {
+    console.log("Setting up event handlers on window load");
+    setupEventHandlers(); // Call again on full page load
 });
 
-// Add this function to your code
-function showToastMessage(message, type = 'info') {
-    // Remove any existing toast
-    const existingToast = document.getElementById('toast-message');
-    if (existingToast) {
-        document.body.removeChild(existingToast);
+// Add the missing setupEventHandlers function
+function setupEventHandlers() {
+    console.log("Setting up event handlers");
+    
+    // Set up form submission handler
+    const timetableForm = document.getElementById('timetableForm');
+    if (timetableForm) {
+        timetableForm.addEventListener('submit', handleFormSubmit);
     }
     
-    // Create and style the toast
-    const toast = document.createElement('div');
-    toast.id = 'toast-message';
-    toast.textContent = message;
+    // Set up PDF generation button
+    const generatePdfBtn = document.getElementById('generatePdf');
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', handleGeneratePdf);
+    }
     
-    // Set color based on type
-    let backgroundColor = '#4CAF50'; // Green for success
-    if (type === 'error') backgroundColor = '#F44336'; // Red for error
-    if (type === 'warning') backgroundColor = '#FF9800'; // Orange for warning
-    if (type === 'info') backgroundColor = '#2196F3'; // Blue for info
+    // Set up view data button
+    const viewDataBtn = document.getElementById('viewStoredData');
+    if (viewDataBtn) {
+        viewDataBtn.addEventListener('click', displayStoredData);
+    }
     
-    // Style the toast
-    toast.style.cssText = `
-        position: fixed;
-        bottom: 30px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: ${backgroundColor};
-        color: white;
-        padding: 16px 32px;
-        border-radius: 4px;
-        font-size: 16px;
-        z-index: 10000;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    `;
+    // Set up clear all entries button
+    const clearAllBtn = document.getElementById('clearAllEntries');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', deleteAllEntries);
+    }
     
-    // Add to DOM
-    document.body.appendChild(toast);
+    // Set up logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
     
-    // Automatically remove after 3 seconds
-    setTimeout(() => {
-        if (toast.parentNode === document.body) {
-            document.body.removeChild(toast);
-        }
-    }, 3000);
+    // Set up time range update button
+    const updateTimeRangeBtn = document.getElementById('updateTimeRange');
+    if (updateTimeRangeBtn) {
+        updateTimeRangeBtn.addEventListener('click', function() {
+            const startTime = document.getElementById('timetableStartTime').value;
+            const endTime = document.getElementById('timetableEndTime').value;
+            
+            localStorage.setItem('timetableStartTime', startTime);
+            localStorage.setItem('timetableEndTime', endTime);
+            
+            renderEmptyTimetableGrid();
+            loadAndDisplayEntries();
+            
+            showToastMessage("Display time range updated", "success");
+        });
+    }
+    
+    // Set up handlers for suggestion list items
+    setupSuggestionHandlers();
 }
 
-// Fix renderEmptyTimetableGrid function in timetable.js
+// Properly define the renderTimetable function globally
+function renderTimetable(entries) {
+    console.log("Rendering timetable with", entries?.length || 0, "entries");
+    
+    // Start with empty grid then populate it
+    renderEmptyTimetableGrid();
+    
+    if (!entries || entries.length === 0) {
+        console.log("No entries to display");
+        return;
+    }
+    
+    // Get days and sessions
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const allSessions = ['2024', '2023', '2022', '2021'];
+    
+    // Use dynamic time slots
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
+    
+    // Track cells that are already handled by multi-slot entries
+    const handledCells = {};
+    
+    // For each day and session, process entries
+    days.forEach((day, dayIndex) => {
+        allSessions.forEach((session, sessionIndex) => {
+            // Calculate row index (skip header row)
+            const rowIndex = 1 + (dayIndex * allSessions.length) + sessionIndex;
+            const row = document.querySelector(`#timetableBody tr:nth-child(${rowIndex})`);
+            
+            if (!row) {
+                console.error(`Row not found for day ${day}, session ${session}, index ${rowIndex}`);
+                return;
+            }
+            
+            // Get entries for this day and session
+            const daySessionEntries = entries.filter(e => 
+                e.day === day && e.session === session);
+            
+            if (daySessionEntries.length === 0) return;
+            
+            // Process each entry for this day/session
+            daySessionEntries.forEach(entry => {
+                // Calculate which time slots this entry spans
+                const entryStartMins = convertToMinutes(entry.startTime);
+                const entryEndMins = convertToMinutes(entry.endTime);
+                
+                let firstSlotIndex = -1;
+                let slotSpan = 0;
+                
+                // Find which slots this entry covers
+                timeSlots.forEach((slot, slotIndex) => {
+                    const [slotStart, slotEnd] = slot.split('-');
+                    const slotStartMins = convertToMinutes(slotStart);
+                    const slotEndMins = convertToMinutes(slotEnd);
+                    
+                    // Check if this entry overlaps with this slot
+                    if (entryStartMins < slotEndMins && entryEndMins > slotStartMins) {
+                        if (firstSlotIndex === -1) {
+                            firstSlotIndex = slotIndex;
+                        }
+                        slotSpan++;
+                        
+                        // Mark this cell as handled
+                        const cellKey = `${rowIndex}-${slotIndex + 2}`; // +2 for day and session columns
+                        handledCells[cellKey] = true;
+                    }
+                });
+                
+                if (firstSlotIndex !== -1 && slotSpan > 0) {
+                    // Skip if column index is beyond table width
+                    const firstCellIndex = firstSlotIndex + 2; // +2 for day and session columns
+                    if (firstCellIndex >= row.cells.length) {
+                        console.warn(`Cell index ${firstCellIndex} out of range for row with ${row.cells.length} cells`);
+                        return;
+                    }
+                    
+                    const firstCell = row.cells[firstCellIndex];
+                    
+                    if (firstCell) {
+                        // Remove other cells this entry spans, but check boundaries
+                        for (let i = 1; i < slotSpan && (firstCellIndex + 1) < row.cells.length; i++) {
+                            const cellToRemove = row.cells[firstCellIndex + 1]; // Always remove the next cell
+                            if (cellToRemove) {
+                                row.removeChild(cellToRemove);
+                            }
+                        }
+                        
+                        // Set colspan for the first cell
+                        firstCell.colSpan = slotSpan;
+                        
+                        // Style the cell
+                        firstCell.textContent = entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode;
+                        firstCell.title = `${entry.courseName} (${entry.teacherName || 'TBD'})`;
+                        firstCell.className = 'course-cell';
+                        
+                        // Style cell based on whether it's a lab or regular course and department
+                        if (entry.isLab) {
+                            firstCell.style.backgroundColor = '#fff8e1'; // Light yellow
+                            firstCell.style.fontStyle = 'italic';
+                            firstCell.classList.add('lab-course');
+                        } else {
+                            // Department based colors
+                            if (entry.department === 'cs') {
+                                firstCell.style.backgroundColor = '#e1f5fe'; // Light blue
+                            } else if (entry.department === 'eng') {
+                                firstCell.style.backgroundColor = '#e8f5e9'; // Light green
+                            } else if (entry.department === 'pharm') {
+                                firstCell.style.backgroundColor = '#fff3e0'; // Light orange
+                            } else {
+                                firstCell.style.backgroundColor = '#f5f5f5'; // Light gray
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    });
+}
+
+// Add the missing renderEmptyTimetableGrid function
 function renderEmptyTimetableGrid() {
     console.log("Rendering empty timetable grid");
     
-    // Get the container by id (which we changed in the HTML)
+    // Get the container by id
     const timetableContainer = document.getElementById('timetable-container');
     if (!timetableContainer) {
         console.error("Timetable container not found");
@@ -1430,259 +1792,246 @@ function renderEmptyTimetableGrid() {
     console.log("Empty timetable grid rendered successfully");
 }
 
-// Add this function to timetable.js
-function setupEventHandlers() {
-    // Check if we've already set up the handlers to avoid duplicates
-    if (window._eventHandlersInitialized) return;
-    window._eventHandlersInitialized = true;
-    
-    console.log("Setting up event handlers");
-    
-    // Set up event handlers for buttons
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', handleLogout);
-    }
-    
-    const generatePdfBtn = document.getElementById('generatePdf');
-    if (generatePdfBtn) {
-        generatePdfBtn.addEventListener('click', handleGeneratePdf);
-    }
-    
-    const viewStoredDataBtn = document.getElementById('viewStoredData');
-    if (viewStoredDataBtn) {
-        viewStoredDataBtn.addEventListener('click', displayStoredData);
-    }
-    
-    const clearAllEntriesBtn = document.getElementById('clearAllEntries');
-    if (clearAllEntriesBtn) {
-        clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
-    }
-    
-    const timetableForm = document.getElementById('timetableForm');
-    if (timetableForm) {
-        timetableForm.addEventListener('submit', handleFormSubmit);
-    }
-    
-    const updateTimeRangeBtn = document.getElementById('updateTimeRange');
-    if (updateTimeRangeBtn) {
-        updateTimeRangeBtn.addEventListener('click', function() {
-            const startTime = document.getElementById('timetableStartTime').value;
-            const endTime = document.getElementById('timetableEndTime').value;
-            
-            // Validate that end time is after start time
-            if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
-                showToastMessage('End time must be after start time', 'error');
-                return;
+// Add setupSuggestionHandlers function
+function setupSuggestionHandlers() {
+    // Set up handlers for teacher names list
+    const addTeacherBtn = document.getElementById('addTeacherBtn');
+    if (addTeacherBtn) {
+        addTeacherBtn.addEventListener('click', async function() {
+            const input = document.getElementById('newTeacherName');
+            if (input && input.value.trim()) {
+                await dataManager.addItem(dataManager.keys.teacherNames, input.value.trim());
+                input.value = '';
+                loadSuggestionList(dataManager.keys.teacherNames, 'teacherNamesListView');
             }
-            
-            // Save to localStorage for persistence
-            localStorage.setItem('timetableStartTime', startTime);
-            localStorage.setItem('timetableEndTime', endTime);
-            
-            // Refresh the display
-            loadAndDisplayEntries();
-            
-            // Use toast notification instead of alert
-            showToastMessage('Time range updated successfully!', 'success');
         });
     }
+    
+    // Set up handlers for venues list
+    const addVenueBtn = document.getElementById('addVenueBtn');
+    if (addVenueBtn) {
+        addVenueBtn.addEventListener('click', async function() {
+            const input = document.getElementById('newVenue');
+            if (input && input.value.trim()) {
+                await dataManager.addItem(dataManager.keys.venues, input.value.trim());
+                input.value = '';
+                loadSuggestionList(dataManager.keys.venues, 'venuesListView');
+            }
+        });
+    }
+    
+    // Set up handlers for course names list
+    const addCourseNameBtn = document.getElementById('addCourseNameBtn');
+    if (addCourseNameBtn) {
+        addCourseNameBtn.addEventListener('click', async function() {
+            const input = document.getElementById('newCourseName');
+            if (input && input.value.trim()) {
+                await dataManager.addItem(dataManager.keys.courseNames, input.value.trim());
+                input.value = '';
+                loadSuggestionList(dataManager.keys.courseNames, 'courseNamesListView');
+            }
+        });
+    }
+    
+    // Set up handlers for course codes list
+    const addCourseCodeBtn = document.getElementById('addCourseCodeBtn');
+    if (addCourseCodeBtn) {
+        addCourseCodeBtn.addEventListener('click', async function() {
+            const input = document.getElementById('newCourseCode');
+            if (input && input.value.trim()) {
+                await dataManager.addItem(dataManager.keys.courseCodes, input.value.trim());
+                input.value = '';
+                loadSuggestionList(dataManager.keys.courseCodes, 'courseCodesListView');
+            }
+        });
+    }
+    
+    // Load all suggestion lists
+    loadAllSuggestionLists();
 }
 
-// Add this function to timetable.js
-function renderTimetable(entries) {
-    console.log("Rendering timetable with", entries?.length || 0, "entries");
+// Add loadSuggestionList and loadAllSuggestionLists functions
+function loadSuggestionList(key, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
     
-    // Set window title based on department from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const department = urlParams.get('dept');
-    
-    // Set the department name in the header if applicable
-    const departmentNames = {
-        'cs': 'Computer Science & IT',
-        'eng': 'Engineering',
-        'pharm': 'Pharmacy & HND'
-    };
-    
-    const headerElement = document.querySelector('.ultra-compact-header h1');
-    const subHeaderElement = document.querySelector('.ultra-compact-header h2');
-    
-    if (headerElement && department && departmentNames[department]) {
-        headerElement.textContent = `Time Table - ${departmentNames[department]}`;
-    }
-    
-    if (subHeaderElement && department && departmentNames[department]) {
-        subHeaderElement.textContent = `DEPT. OF ${departmentNames[department].toUpperCase()} - University of Chakwal`;
-    }
-    
-    // Start with empty grid then populate it
-    renderEmptyTimetableGrid();
-    
-    if (!entries || entries.length === 0) {
-        console.log("No entries to display");
-        return;
-    }
-    
-    // Get days and sessions for the timetable
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const allSessions = ['2024', '2023', '2022', '2021'];
-    
-    // Use dynamic time slots
-    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Default to 5pm
-    const timeSlots = getDynamicTimeSlots(startTime, endTime);
-    
-    // For each day, session and time slot, find relevant entry
-    const table = document.querySelector('.table');
-    if (!table) return;
-    
-    // For each day-session combination, find entries
-    days.forEach((day, dayIndex) => {
-        allSessions.forEach((session, sessionIndex) => {
-            // Calculate row index (skip header row)
-            const rowIndex = 1 + (dayIndex * allSessions.length) + sessionIndex;
-            const row = table.rows[rowIndex];
+    dataManager.getData(key).then(items => {
+        container.innerHTML = '';
+        
+        if (items.length === 0) {
+            container.innerHTML = '<div class="list-item">No items yet</div>';
+            return;
+        }
+        
+        items.forEach(item => {
+            const itemEl = document.createElement('div');
+            itemEl.className = 'list-item';
             
-            if (!row) {
-                console.error(`Row not found for day ${day}, session ${session}, index ${rowIndex}`);
-                return;
-            }
+            const itemText = document.createElement('span');
+            itemText.className = 'list-item-text';
+            itemText.textContent = item;
+            itemEl.appendChild(itemText);
             
-            // For each time slot in the row
-            timeSlots.forEach((slot, slotIndex) => {
-                // Column index (add 2 to account for day and session columns)
-                const colIndex = slotIndex + 2;
-                
-                // Skip if we're beyond available columns
-                if (colIndex >= row.cells.length) {
-                    return; // Skip this slot if the cell doesn't exist
-                }
-                
-                const cell = row.cells[colIndex];
-                
-                // Get entries for this day and session
-                const daySessionEntries = entries.filter(e => 
-                    e.day === day && e.session === session);
-                
-                if (daySessionEntries.length === 0) return;
-                
-                // Find entry that falls in this time slot
-                const [slotStart, slotEnd] = slot.split('-');
-                const entry = findEntryForTimeSlot(daySessionEntries, slotStart, slotEnd);
-                
-                if (entry) {
-                    // Create cell content with course info
-                    cell.textContent = entry.isLab 
-                        ? `${entry.courseCode} Lab` 
-                        : entry.courseCode;
-                    cell.title = `${entry.courseName} (${entry.teacherName || 'TBD'})`;
-                    
-                    // Style cell based on whether it's a lab or regular course
-                    if (entry.isLab) {
-                        cell.style.backgroundColor = '#fff8e1'; // Light yellow
-                        cell.style.fontStyle = 'italic';
-                    } else {
-                        // Use department based colors
-                        if (entry.department === 'cs') {
-                            cell.style.backgroundColor = '#e1f5fe'; // Light blue
-                        } else if (entry.department === 'eng') {
-                            cell.style.backgroundColor = '#e8f5e9'; // Light green
-                        } else if (entry.department === 'pharm') {
-                            cell.style.backgroundColor = '#fff3e0'; // Light orange
-                        } else {
-                            cell.style.backgroundColor = '#f5f5f5'; // Light gray (default)
-                        }
-                    }
-                }
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn danger small';
+            deleteBtn.textContent = '×';
+            deleteBtn.addEventListener('click', async () => {
+                await dataManager.removeItem(key, item);
+                loadSuggestionList(key, containerId);
             });
+            
+            const actionDiv = document.createElement('div');
+            actionDiv.className = 'list-item-actions';
+            actionDiv.appendChild(deleteBtn);
+            itemEl.appendChild(actionDiv);
+            
+            container.appendChild(itemEl);
         });
     });
 }
 
-// Fix for handleFormSubmit function
-async function handleFormSubmit(e) {
-    e.preventDefault();
-    
-    try {
-        // Get form values
-        const courseCode = document.getElementById('courseCode').value.trim();
-        const courseName = document.getElementById('courseName').value.trim();
-        const creditHours = document.getElementById('creditHours').value.trim();
-        const venue = document.getElementById('venue').value.trim();
-        const teacherName = document.getElementById('teacherName').value.trim();
-        const session = document.getElementById('session').value;
-        const startTime = document.getElementById('startTime').value;
-        const endTime = document.getElementById('endTime').value;
-        const isLab = document.getElementById('isLab').checked;
-        const department = document.getElementById('department').value; // Make sure department field exists
-        
-        // Add this before the for loop in handleFormSubmit:
-        console.log("Adding entries with department:", department);
-        
-        // Add the entry to selected days - FIX THE DAY CHECKBOX SELECTION ISSUE
-        // The issue might be with the class name or selection method
-        const dayCheckboxes = document.querySelectorAll('input[type="checkbox"][name="day"]');
-        const selectedDays = Array.from(dayCheckboxes)
-            .filter(checkbox => checkbox.checked)
-            .map(checkbox => checkbox.value);
-        
-        console.log("Selected days:", selectedDays); // Debug info
-        
-        if (selectedDays.length === 0) {
-            alert("Please select at least one day.");
-            return;
-        }
-        
-        if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
-            alert("End time must be after start time.");
-            return;
-        }
-        
-        const loadingEl = showLoading("Adding entries...");
-        
-        let addedEntries = 0;
-        
-        for (const day of selectedDays) {
-            const entry = {
-                day,
-                session,
-                courseCode,
-                courseName,
-                creditHours,
-                teacherName,
-                venue,
-                startTime,
-                endTime,
-                isLab,
-                department
-            };
-            
-            const result = await addTimetableEntry(entry);
-            
-            if (result.success) {
-                addedEntries++;
-                
-                // Add to suggestion arrays for autocomplete
-                dataManager.addItem(dataManager.keys.teacherNames, teacherName);
-                dataManager.addItem(dataManager.keys.venues, venue);
-                dataManager.addItem(dataManager.keys.courseNames, courseName);
-                dataManager.addItem(dataManager.keys.courseCodes, courseCode);
-            }
-        }
-        
-        hideLoading();
-        showToastMessage(`Added ${addedEntries} entries successfully.`, 'success');
-        
-        // Reset form after submission
-        document.getElementById('timetableForm').reset();
-        
-    } catch (error) {
-        hideLoading();
-        handleError(error, "handleFormSubmit");
-    }
+function loadAllSuggestionLists() {
+    loadSuggestionList(dataManager.keys.teacherNames, 'teacherNamesListView');
+    loadSuggestionList(dataManager.keys.venues, 'venuesListView');
+    loadSuggestionList(dataManager.keys.courseNames, 'courseNamesListView');
+    loadSuggestionList(dataManager.keys.courseCodes, 'courseCodesListView');
 }
 
-// Add this function to timetable.js
+// Make sure all these functions are available globally
+window.setupEventHandlers = setupEventHandlers;
+window.renderTimetable = renderTimetable;
+window.renderEmptyTimetableGrid = renderEmptyTimetableGrid;
+window.showToastMessage = showToastMessage;
+
+// Define the showToastMessage function
+function showToastMessage(message, type = 'info') {
+  // Check if toast container exists, if not, create it
+  let toastContainer = document.getElementById('toast-container');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    toastContainer.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:10000;';
+    document.body.appendChild(toastContainer);
+  }
+  
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toast.style.cssText = `
+    padding: 12px 20px;
+    background-color: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#F44336' : '#2196F3'};
+    color: white;
+    border-radius: 4px;
+    margin-top: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    min-width: 250px;
+    transition: all 0.3s ease;
+    opacity: 0;
+  `;
+  
+  // Add to container
+  toastContainer.appendChild(toast);
+  
+  // Trigger animation
+  setTimeout(() => {
+    toast.style.opacity = '1';
+  }, 10);
+  
+  // Remove after delay
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => {
+      if (toast && toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 300);
+  }, 3000);
+}
+
+// Add the missing handleFormSubmit function
+async function handleFormSubmit(e) {
+  e.preventDefault();
+  
+  try {
+    // Get form values
+    const courseCode = document.getElementById('courseCode').value.trim();
+    const courseName = document.getElementById('courseName').value.trim();
+    const creditHours = document.getElementById('creditHours').value.trim();
+    const venue = document.getElementById('venue').value.trim();
+    const teacherName = document.getElementById('teacherName').value.trim();
+    const session = document.getElementById('session').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime = document.getElementById('endTime').value;
+    const isLab = document.getElementById('isLab').checked;
+    const department = document.getElementById('department').value;
+    
+    // Add the entry to selected days
+    const dayCheckboxes = document.querySelectorAll('input[type="checkbox"][name="day"]');
+    const selectedDays = Array.from(dayCheckboxes)
+      .filter(checkbox => checkbox.checked)
+      .map(checkbox => checkbox.value);
+    
+    console.log("Selected days:", selectedDays);
+    
+    if (selectedDays.length === 0) {
+      alert("Please select at least one day.");
+      return;
+    }
+    
+    if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
+      alert("End time must be after start time.");
+      return;
+    }
+    
+    const loadingEl = showLoading("Adding entries...");
+    
+    let addedEntries = 0;
+    
+    // Log for debugging
+    console.log("Adding entries with department:", department);
+    
+    for (const day of selectedDays) {
+      const entry = {
+        day,
+        session,
+        courseCode,
+        courseName,
+        creditHours,
+        teacherName,
+        venue,
+        startTime,
+        endTime,
+        isLab,
+        department
+      };
+      
+      const result = await addTimetableEntry(entry);
+      
+      if (result.success) {
+        addedEntries++;
+        
+        // Add to suggestion arrays for autocomplete
+        dataManager.addItem(dataManager.keys.teacherNames, teacherName);
+        dataManager.addItem(dataManager.keys.venues, venue);
+        dataManager.addItem(dataManager.keys.courseNames, courseName);
+        dataManager.addItem(dataManager.keys.courseCodes, courseCode);
+      }
+    }
+    
+    hideLoading();
+    showToastMessage(`Added ${addedEntries} entries successfully.`, 'success');
+    
+    // Reset form after submission
+    document.getElementById('timetableForm').reset();
+    
+  } catch (error) {
+    hideLoading();
+    handleError(error, "handleFormSubmit");
+  }
+}
+
+// Add the fixExistingEntries function
 async function fixExistingEntries() {
   if (!confirm('Do you want to update all entries without a department to your current department?')) {
     return;
@@ -1716,11 +2065,12 @@ async function fixExistingEntries() {
 // Make it available globally
 window.fixExistingEntries = fixExistingEntries;
 
-// Add this helper function
+// Add the verifyDepartments function
 function verifyDepartments() {
   const entries = window.allTimetableEntries || [];
   if (entries.length === 0) {
     console.log("No entries to verify");
+    alert("No entries to verify");
     return;
   }
 
@@ -1741,27 +2091,16 @@ function verifyDepartments() {
   });
 
   console.table(departmentCounts);
-  console.log("Department verification complete:", entries.length, "entries checked");
+  
+  // Show results in an alert
+  const message = Object.entries(departmentCounts)
+    .map(([dept, count]) => `${dept}: ${count}`)
+    .join('\n');
+    
+  alert(`Department verification results:\n${message}\n\nTotal: ${entries.length} entries checked`);
   
   return departmentCounts;
 }
 
 // Make it available
 window.verifyDepartments = verifyDepartments;
-
-// Add at the end of the file
-// Make sure all required functions are available in the global scope
-window.setupFirebase = setupFirebase;
-window.renderEmptyTimetableGrid = renderEmptyTimetableGrid;
-window.initializeApplication = initializeApplication;
-window.loadAndDisplayEntries = loadAndDisplayEntries;
-window.renderTimetable = renderTimetable;
-window.getAllTimeSlots = getAllTimeSlots;
-window.getDynamicTimeSlots = getDynamicTimeSlots;
-window.getAllTimetableEntries = getAllTimetableEntries;
-window.ensureCollectionsExist = ensureCollectionsExist;
-window.setupEventHandlers = setupEventHandlers;
-window.dataManager = dataManager;
-window.handleError = handleError;
-window.showToastMessage = showToastMessage;
-window.setupRealtimeUpdates = setupRealtimeUpdates; // Make sure this is added

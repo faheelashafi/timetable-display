@@ -8,7 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="../scripts/timetable.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
     <style>
         /* Admin Panel Enhanced Styles */
         :root {
@@ -889,6 +888,25 @@
         if (fixEntriesBtn) {
             fixEntriesBtn.addEventListener('click', fixExistingEntries);
         }
+    </script>
+
+    <!-- Replace the problematic script import -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        
+        // Make functions available globally
+        window.firebaseModules = {
+            initializeApp,
+            ...firestore
+        };
+        
+        // Call setup when module is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof window.setupFirebase === 'function') {
+                window.setupFirebase(window.firebaseModules);
+            }
+        });
     </script>
 </body>
 </html>
