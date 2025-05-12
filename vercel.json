@@ -11,6 +11,9 @@
     { "src": "/", "dest": "/index.html" },
     { "src": "/admin", "dest": "/src/AdminLogin.html" },
     { "src": "/admin-panel", "dest": "/src/AdminPanel.html" },
+    { "src": "/cs", "dest": "/src/DisplayTimetable.html?dept=cs" },
+    { "src": "/engineering", "dest": "/src/DisplayTimetable.html?dept=eng" },
+    { "src": "/pharmacy", "dest": "/src/DisplayTimetable.html?dept=pharm" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }

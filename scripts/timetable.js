@@ -1,8 +1,8 @@
-// Define these functions to be loaded from the HTML modules
-let initializeApp; 
-let getFirestore, collection, getDocs, addDoc, setDoc, doc, deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot;
+// At the top of the file - define these variables but don't initialize them yet
+let initializeApp, getFirestore, collection, getDocs, addDoc, setDoc, doc, 
+    deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot;
 
-// Firebase initialization function
+// Firebase initialization function that will be called from HTML with imports
 function setupFirebase(imports) {
   console.log("Starting Firebase initialization...");
   
@@ -26,7 +26,7 @@ function setupFirebase(imports) {
     updateDoc = imports.updateDoc;
     arrayUnion = imports.arrayUnion;
     arrayRemove = imports.arrayRemove;
-    onSnapshot = imports.onSnapshot; // Add this line
+    onSnapshot = imports.onSnapshot;
     
     // Initialize Firebase ONCE with console logging
     console.log("Initializing Firebase app...");
@@ -36,26 +36,10 @@ function setupFirebase(imports) {
     console.log("Firestore initialized, db object created");
     window.firebaseInitialized = true;
     
-    // Export functions to window for access across HTML files
-    window.addTimetableEntry = addTimetableEntry;
-    window.getAllTimetableEntries = getAllTimetableEntries;
-    window.deleteTimetableEntry = deleteTimetableEntry;
-    window.loadAndDisplayEntries = loadAndDisplayEntries;
-    window.displayEntriesInAdmin = displayEntriesInAdmin;
-    window.renderEmptyTimetableGrid = renderEmptyTimetableGrid;
-    window.renderTimetable = renderTimetable;
-    window.initializeApplication = initializeApplication;
-    window.getSuggestionArray = getSuggestionArray;
-    window.updateStats = updateStats;
-    window.ensureCollectionsExist = ensureCollectionsExist;
-    window.initializeSessionDropdown = initializeSessionDropdown;
-    window.setupRealtimeUpdates = setupRealtimeUpdates; // Export setupRealtimeUpdates to window
-    
-    console.log("Firebase initialization completed successfully");
+    // Rest of your function...
     return window.db;
   } catch (error) {
     console.error("Firebase initialization failed:", error);
-    alert("Firebase initialization failed: " + error.message);
     return null;
   }
 }
@@ -70,6 +54,197 @@ const firebaseConfig = {
     appId: "1:58609356223:web:c7a7f6014324f05605a50a",
     measurementId: "G-DFEDHHHV88"
 };
+
+// Add this function at the beginning of your timetable.js file 
+function initializeApplication() {
+  // Prevent multiple initializations
+  if (window._appInitialized) {
+    console.log("Application already initialized, skipping");
+    return;
+  }
+  
+  // Don't show loading indicator on DisplayTimetable page
+  let loadingElement = null;
+  if (window.location.href.includes('AdminPanel.html')) {
+    loadingElement = showLoading("Loading application...");
+  }
+  
+  window._appInitialized = true; // Set the flag
+  
+  // Check login status for admin pages
+  if (!checkLogin()) return;
+  
+  try {
+    // Initialize time range inputs with stored values
+    const timetableStartTime = document.getElementById('timetableStartTime');
+    const timetableEndTime = document.getElementById('timetableEndTime');
+    if (timetableStartTime && timetableEndTime) {
+      timetableStartTime.value = localStorage.getItem('timetableStartTime') || '08:00';
+      timetableEndTime.value = localStorage.getItem('timetableEndTime') || '17:00'; 
+    }
+    
+    // Load entries and display them
+    loadAndDisplayEntries();
+    
+    // Initialize dropdown menus
+    if (typeof initializeSessionDropdown === 'function') {
+      initializeSessionDropdown();
+    }
+    
+    // Initialize autocomplete
+    const autocompleteInputs = document.querySelectorAll('[data-autocomplete]');
+    autocompleteInputs.forEach(input => {
+      const field = input.dataset.autocomplete;
+      if (!field) return;
+      
+      // Implementation of autocomplete setup here
+    });
+    
+  } catch (error) {
+    console.error("Error in initializeApplication:", error);
+    handleError(error, "initializeApplication");
+  } finally {
+    if (loadingElement) hideLoading();
+  }
+}
+
+// Add handleLogout function
+function handleLogout() {
+  if (confirm('Are you sure you want to logout?')) {
+    console.log("User logged out");
+    sessionStorage.removeItem('loggedIn');
+    sessionStorage.removeItem('authToken');
+    sessionStorage.removeItem('currentUser');
+    window.location.href = 'AdminLogin.html';
+  }
+}
+
+// Add handleGeneratePdf function 
+function handleGeneratePdf() {
+  const loadingEl = showLoading("Generating PDF...");
+  
+  try {
+    generatePDF();
+  } catch (error) {
+    handleError(error, "handleGeneratePdf");
+  } finally {
+    hideLoading();
+  }
+}
+
+// Add displayStoredData function
+function displayStoredData() {
+  try {
+    const entries = window.timetableEntries || [];
+    if (entries.length === 0) {
+      alert("No entries to display");
+      return;
+    }
+    
+    // Create a formatted display
+    let output = `Total Entries: ${entries.length}\n\n`;
+    entries.forEach((entry, i) => {
+      output += `Entry ${i+1}: ${entry.day} - ${entry.session} - ${entry.courseCode} - ${entry.startTime}-${entry.endTime}\n`;
+    });
+    
+    console.log(output);
+    alert(output);
+  } catch (error) {
+    handleError(error, "displayStoredData");
+  }
+}
+
+// Add generatePDF function
+function generatePDF() {
+  try {
+    // PDF generation requires jspdf and jspdf-autotable
+    if (!window.jspdf || !window.jspdf.jsPDF || !window.jspdf.jsPDF.autoTable) {
+      throw new Error("PDF generation libraries not loaded");
+    }
+    
+    const { jsPDF } = window.jspdf;
+    
+    // Create a new PDF document
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    // Add title and header
+    const title = "Time Table Fall Semester 2024";
+    
+    // Get department from URL if present
+    const urlParams = new URLSearchParams(window.location.search);
+    const department = urlParams.get('dept');
+    
+    // Set the department name
+    const departmentNames = {
+      'cs': 'Computer Science & IT',
+      'eng': 'Engineering',
+      'pharm': 'Pharmacy & HND'
+    };
+    
+    const departmentName = department && departmentNames[department] 
+      ? departmentNames[department] 
+      : 'COMPUTER SCIENCE & INFORMATION TECHNOLOGY';
+    
+    const subheader = `DEPARTMENT OF ${departmentName.toUpperCase()}`;
+    const universityName = "University of Chakwal";
+    const semesterInfo = "BSIT -1st, 3rd, 5th, 7th Semester (Evening): 30-09-2024";
+    
+    // Set initial position for title
+    let startY = 15;
+    
+    // Add title
+    doc.setFontSize(16);
+    doc.text(title, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' });
+    
+    // Add department name
+    startY += 7;
+    doc.setFontSize(14);
+    doc.text(subheader, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' });
+    
+    // Add university name
+    startY += 7;
+    doc.setFontSize(12);
+    doc.text(universityName, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' });
+    
+    // Add semester info
+    startY += 7;
+    doc.setFontSize(11);
+    doc.text(semesterInfo, doc.internal.pageSize.getWidth() / 2, startY, { align: 'center' });
+    
+    startY += 10;
+    
+    // Rest of your PDF generation code...
+    
+    // Create a color map to assign unique colors to courses
+    const courseColorMap = {};
+    const predefinedColors = [
+        [230, 232, 250], // Lavender
+        [224, 242, 241], // Light Teal
+        [238, 232, 213], // Light Tan
+        [225, 245, 254], // Very Light Blue
+        // More colors...
+    ];
+
+    const entries = window.timetableEntries || [];
+    const allCourseCodes = [...new Set(entries.map(e => e.courseCode))];
+    
+    // Assign colors to each course
+    allCourseCodes.forEach((code, index) => {
+        courseColorMap[code] = predefinedColors[index % predefinedColors.length];
+    });
+
+    // Save the PDF
+    doc.save("timetable.pdf");
+    
+    showToastMessage('PDF generated successfully!', 'success');
+  } catch (error) {
+    handleError(error, "generatePDF");
+  }
+}
 
 // Complete time format normalization function
 function normalizeTimeFormat(timeString) {
@@ -137,6 +312,33 @@ function getAllTimeSlots(entries) {
     const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
     
     return getDynamicTimeSlots(startTime, endTime);
+}
+
+// Add this function to timetable.js
+function getDynamicTimeSlots(startTime, endTime) {
+    console.log(`Generating time slots from ${startTime} to ${endTime}`);
+    const slots = [];
+    
+    // Convert to minutes for easier calculation
+    const startMinutes = convertToMinutes(startTime);
+    const endMinutes = convertToMinutes(endTime);
+    
+    // Generate slots with 30 minute intervals
+    for (let time = startMinutes; time < endMinutes; time += 30) {
+        const slotStartHour = Math.floor(time / 60);
+        const slotStartMin = time % 60;
+        
+        const slotEndHour = Math.floor((time + 30) / 60);
+        const slotEndMin = (time + 30) % 60;
+        
+        // Format hours and minutes with leading zeros
+        const formattedStart = `${String(slotStartHour).padStart(2, '0')}:${String(slotStartMin).padStart(2, '0')}`;
+        const formattedEnd = `${String(slotEndHour).padStart(2, '0')}:${String(slotEndMin).padStart(2, '0')}`;
+        
+        slots.push(`${formattedStart}-${formattedEnd}`);
+    }
+    
+    return slots;
 }
 
 // Improved authentication function in timetable.js
@@ -596,7 +798,7 @@ function initializeSessionDropdown() {
 window.initializeSessionDropdown = initializeSessionDropdown;
 
 // Display entries in the admin panel (updated version)
-async function displayEntriesInAdmin() {
+async function displayEntriesInAdmin(entries) {
     const entriesList = document.getElementById('entriesList');
     if (!entriesList) {
         return;
@@ -604,7 +806,7 @@ async function displayEntriesInAdmin() {
 
     try {
         // Always reload from Firestore to get the latest data
-        timetableEntries = await getAllTimetableEntries();
+        timetableEntries = entries || await getAllTimetableEntries();
 
         entriesList.innerHTML = ''; // Clear existing entries
         
@@ -677,1460 +879,42 @@ async function displayEntriesInAdmin() {
     }
 }
 
-// Updated handleGeneratePdf function with proper data loading
-async function handleGeneratePdf() {
-  try {
-    console.log("Starting PDF generation process in handleGeneratePdf");
-    
-    const loadingEl = showLoading("Generating PDF..."); // Show loading indicator
-
-    // Make sure we have the latest data first
-    // loadAndDisplayEntries also updates window.timetableEntries
-    await loadAndDisplayEntries(); 
-    
-    // Get the fresh entries directly
-    const entriesForPdf = await getAllTimetableEntries();
-    console.log(`[handleGeneratePdf] Retrieved ${entriesForPdf.length} entries directly for PDF`);
-        
-    if (entriesForPdf.length === 0) {
-      alert("No entries found to generate PDF. Please add some entries first.");
-      // No need to hide loading here if generatePDF is not called
-      // but if we return early, we should hide it.
-      if (loadingEl) hideLoading(); 
-      return;
-    }
-    
-    // Now generate the PDF with the fresh data, passing it directly
-    generatePDF(entriesForPdf); // Pass entries as an argument
-
-  } catch (error) {
-    console.error("PDF generation error in handleGeneratePdf:", error);
-    alert("PDF generation failed: " + error.message);
-  } finally {
-    // Ensure loading indicator is hidden if it was shown by this function
-    // Check if the element still exists before trying to remove
-    const loadingElCheck = document.getElementById('app-loading');
-    if (loadingElCheck) hideLoading();
-  }
-}
-
-// Enhanced PDF generation function to match the formal academic format
-function generatePDF(entriesFromCaller) { // Accept entries as a parameter
-    try {
-        // Use entriesFromCaller if provided, otherwise fallback to window.timetableEntries
-        const entries = entriesFromCaller || window.timetableEntries || [];
-        console.log("generatePDF: Using entries. Count:", entries.length);
-        if (entriesFromCaller) {
-            console.log("generatePDF: Received entries directly from caller.");
-        } else {
-            console.log("generatePDF: Using window.timetableEntries as fallback.");
-        }
-
-        console.log("generatePDF: Initial window.timetableEntries:", JSON.parse(JSON.stringify(entries)));
-
-        // Create a color map to assign unique colors to courses
-        const courseColorMap = {};
-        const predefinedColors = [
-            [230, 232, 250], // Lavender
-            [224, 242, 241], // Light Teal
-            [238, 232, 213], // Light Tan
-            [225, 245, 254], // Very Light Blue
-            [232, 245, 233], // Light Mint Green
-            [255, 243, 224], // Light Peach
-            [241, 248, 233], // Light Sage
-            [237, 231, 246], // Soft Lilac
-            [248, 235, 230], // Pale Salmon
-            [230, 238, 247], // Ice Blue
-            [242, 240, 230], // Light Beige
-            [252, 236, 238], // Soft Pink
-            [230, 245, 240], // Mint Cream
-            [240, 240, 250], // Lavender Mist
-            [242, 237, 226], // Light Khaki
-            [236, 242, 248], // Pale Sky Blue
-            [245, 235, 224], // Light Peach
-            [235, 248, 235], // Honeydew
-            [240, 248, 255], // Alice Blue
-            [246, 246, 235]  // Light Ivory
-        ];
-
-        // Extract all unique course codes from entries
-        const allCourseCodes = [...new Set(entries.map(e => e.courseCode))];
-
-        // Assign colors to each course
-        allCourseCodes.forEach((code, index) => {
-            courseColorMap[code] = predefinedColors[index % predefinedColors.length];
-        });
-
-        console.log("Course color mapping:", courseColorMap);
-
-        ensureJsPdfLoaded().then(() => {
-            const { jsPDF } = window.jspdf;
-            console.log(`generatePDF: jsPDF loaded successfully ${jsPDF.version}`);
-            if (!jsPDF) {
-                alert("PDF generation failed: jsPDF library not loaded properly");
-                return;
-            }
-            
-            // Change orientation to landscape ('l')
-            const doc = new jsPDF('l', 'mm', 'a4'); // 'l' for landscape, 'p' for portrait
-            
-            const pageWidth = doc.internal.pageSize.width;
-            const pageHeight = doc.internal.pageSize.height;
-            const margin = 10; // You might want a smaller margin for landscape if needed
-            
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Time Table Fall Semester 2024', pageWidth / 2, 15, { align: 'center' });
-            doc.setFontSize(12);
-            doc.text('DEPARTMENT OF COMPUTER SCIENCE & INFORMATION TECHNOLOGY', 
-                pageWidth / 2, 20, { align: 'center' });
-            doc.setFontSize(10);
-            doc.text('University of Chakwal', pageWidth / 2, 25, { align: 'center' });
-            doc.text('BSIT -1st, 3rd, 5th, 7th Semester (Evening): 30-09-2024', pageWidth / 2, 30, { align: 'center' });
-            
-            if (entries.length === 0) {
-                console.warn("generatePDF: No entries found in window.timetableEntries when starting grid generation. PDF timetable grid will be empty.");
-            }
-            
-            let startY = 35;
-            
-            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-            const sessions = ['2024', '2023', '2022', '2021'];
-            
-            const timeSlots = getDynamicTimeSlots("08:00", "17:00");
-            
-            const scheduleHeader = ['Day', 'Session', ...timeSlots];
-            const scheduleData = [];
-            
-            days.forEach(day => {
-                sessions.forEach((session, idx) => {
-                    const row = [];
-                    
-                    if (idx === 0) {
-                        row.push(day);
-                    } else {
-                        row.push('');
-                    }
-                    row.push(session);
-                    
-                    const daySessionEntries = entries.filter(entry => 
-                        entry.day === day && entry.session === session);
-                    
-                    console.log(`[PDF GRID] Day: ${day}, Session: ${session}. Found ${daySessionEntries.length} entries.`);
-                    
-                    let slotIndex = 0;
-                    while (slotIndex < timeSlots.length) {
-                        const timeSlot = timeSlots[slotIndex];
-                        let entryForSlot = null;
-                        
-                        for (const entry of daySessionEntries) {
-                            if (timeSlotMatches(timeSlot, entry.startTime, entry.endTime)) {
-                                entryForSlot = entry;
-                                break;
-                            }
-                        }
-                        
-                        if (entryForSlot) {
-                            let cellContent = entryForSlot.courseCode + (entryForSlot.isLab ? ' Lab' : '');
-                            
-                            let colspan = 1;
-                            
-                            const entryStartMins = convertToMinutes(normalizeTimeFormat(entryForSlot.startTime));
-                            const entryEndMins = convertToMinutes(normalizeTimeFormat(entryForSlot.endTime));
-                            
-                            for (let nextSlot = slotIndex + 1; nextSlot < timeSlots.length; nextSlot++) {
-                                const [nextSlotStart, nextSlotEnd] = timeSlots[nextSlot].split('-');
-                                
-                                const timeMap = {
-                                    '01:00': '13:00', '01:30': '13:30', '02:00': '14:00', '02:30': '14:30',
-                                    '03:00': '15:00', '03:30': '15:30', '04:00': '16:00', '04:30': '16:30',
-                                    '05:00': '17:00', '05:30': '17:30', '06:00': '18:00', '06:30': '18:30', 
-                                    '07:00': '19:00'
-                                };
-                                
-                                const mappedNextEnd = timeMap[nextSlotEnd] || nextSlotEnd;
-                                const nextSlotEndMins = convertToMinutes(mappedNextEnd);
-                                
-                                if (entryEndMins > nextSlotEndMins - 15) {
-                                    colspan++;
-                                } else {
-                                    break;
-                                }
-                            }
-                            
-                            console.log(`Course ${cellContent} spans ${colspan} slots (${entryForSlot.startTime}-${entryForSlot.endTime})`);
-                            
-                            const cellStyles = {
-                                halign: 'center',
-                                valign: 'middle',
-                                cellWidth: 'wrap',
-                                overflow: 'linebreak'
-                            };
-                            
-                            if (entryForSlot.isLab) {
-                                // For lab courses, use a very light yellow with a subtle border
-                                cellStyles.fillColor = [255, 250, 230];  // Even lighter yellow for labs
-                                cellStyles.textColor = [80, 80, 80];     // Dark gray text instead of pure black
-                                cellStyles.fontStyle = 'italic';
-                                cellStyles.lineWidth = 0.5;              // Add a subtle border
-                                cellStyles.lineColor = [200, 200, 200];  // Light gray border
-                            } else {
-                                // For regular courses, use the unique color assigned to each course code
-                                const courseColor = courseColorMap[entryForSlot.courseCode];
-                                
-                                if (courseColor) {
-                                    cellStyles.fillColor = courseColor;
-                                    
-                                    // Always use dark gray text for these pastel backgrounds
-                                    cellStyles.textColor = [80, 80, 80]; // Dark gray text for better contrast on light backgrounds
-                                    
-                                    // Add a subtle border to better distinguish cells
-                                    cellStyles.lineWidth = 0.25;
-                                    cellStyles.lineColor = [200, 200, 200];
-                                } else {
-                                    cellStyles.fillColor = [245, 245, 245]; // Very light gray
-                                    cellStyles.textColor = [80, 80, 80];    // Dark gray text
-                                }
-                            }
-                            
-                            row.push({ content: cellContent, colSpan: colspan, styles: cellStyles });
-                            slotIndex += colspan;
-                        } else {
-                            // Empty cell - add an empty string
-                            row.push('');
-                            slotIndex++;
-                        }
-                    }
-                    scheduleData.push(row);
-                });
-            });
-
-            doc.autoTable({
-                head: [scheduleHeader],
-                body: scheduleData,
-                startY: startY,
-                styles: {
-                    cellPadding: 2,    // Increased from 1.5 for more space
-                    fontSize: 7,
-                    overflow: 'linebreak',
-                    halign: 'center',
-                    valign: 'middle',
-                    lineColor: [220, 220, 220],
-                    lineWidth: 0.1,
-                    minCellWidth: 12   // Add minimum cell width to prevent wrapping
-                },
-                headStyles: {
-                    fillColor: [56, 142, 60], // Changed to match day cells green color
-                    textColor: [255, 255, 255],
-                    fontSize: 5.5,     // Slightly smaller font for headers to fit better
-                    halign: 'center',
-                    valign: 'middle',
-                    cellPadding: 1.5   // Adjust padding specifically for header cells
-                },
-                columnStyles: {
-                    // Add specific width to time columns (index 2 and above)
-                    2: { cellWidth: 14 },   // Increased from 13 to 14
-                    3: { cellWidth: 14 },   // Increased from 13 to 14
-                    4: { cellWidth: 14 }    // Increased from 13 to 14
-                    // You can continue with more indices if needed
-                },
-                didParseCell: function(data) {
-                    // Keep the existing didParseCell function
-                    if (data.section === 'body' && data.column.index === 0 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
-                        data.cell.styles.fillColor = [56, 142, 60];
-                        data.cell.styles.textColor = [255, 255, 255];
-                    }
-                    if (data.section === 'body' && data.column.index === 1 && data.cell.text && data.cell.text.length > 0 && data.cell.text[0]) {
-                        data.cell.styles.fillColor = [232, 245, 233];
-                    }
-                    
-                    // For time header cells, ensure text doesn't wrap
-                    if (data.section === 'head' && data.column.index > 1) {
-                        data.cell.styles.minCellWidth = 13;  // Minimum width for time headers
-                    }
-                }
-            });
-            
-            let currentY = doc.previousAutoTable.finalY + 10;
-            const sessionGroups = groupEntriesBySession(entries);
-            
-            for (const sessionKey in sessionGroups) {
-                if (sessionGroups[sessionKey].length === 0) continue;
-                
-                const sessionYear = sessionKey;
-                const sessionTitle = `Session ${sessionYear} (${getSessionName(sessionYear)})`;
-                
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.text(sessionTitle, margin, currentY);
-                
-                const courseDetailsHeader = ['Course Code', 'Course Name', 'Credit Hrs.', 'Teacher Name', 'Venue'];
-                const courseDetailsData = [];
-                const uniqueCourses = getUniqueCourses(sessionGroups[sessionKey]);
-                
-                uniqueCourses.forEach(course => {
-                    courseDetailsData.push([
-                        course.courseCode,
-                        course.courseName || '',
-                        course.creditHours || '',
-                        course.teacherName || '',
-                        course.venue || ''
-                    ]);
-                });
-                
-                doc.autoTable({
-                    head: [courseDetailsHeader],
-                    body: courseDetailsData,
-                    startY: currentY + 5,
-                    margin: { left: margin, right: margin },
-                    styles: { fontSize: 8 },
-                    headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0], fontStyle: 'bold' },
-                    alternateRowStyles: { fillColor: [250, 250, 250] }
-                });
-                
-                currentY = doc.previousAutoTable.finalY + 10;
-                if (currentY > pageHeight - 50) {
-                    doc.addPage();
-                    currentY = 20;
-                }
-            }
-            
-            currentY = Math.max(currentY, pageHeight - 40);
-            doc.setFontSize(8);
-            doc.text('1.   Notice board', margin, currentY);
-            doc.text('2.   Concerned Teachers', margin, currentY + 5);
-            doc.text('3.   Concerned Labs', margin, currentY + 10);
-            doc.text('4.   Chairman Office', margin, currentY + 15);
-            
-            doc.text('Dr. Rashid Amin', pageWidth - margin - 30, currentY + 5, { align: 'right' });
-            doc.text('Head of Department', pageWidth - margin - 30, currentY + 10, { align: 'right' });
-            doc.text('Department of CS & IT', pageWidth - margin - 30, currentY + 15, { align: 'right' });
-            
-            doc.save('Timetable_Fall_2024.pdf');
-            
-        }).catch(error => {
-            console.error("Error during PDF generation promise:", error);
-            alert("PDF generation failed: " + error.message);
-        });
-    } catch (error) {
-        console.error("Synchronous error in generatePDF:", error);
-        alert("PDF generation failed: " + error.message);
-    }
-}
-
-// Helper functions for PDF generation
-function timeSlotMatches(timeSlot, startTime, endTime) {
-    const [slotStartStr, slotEndStr] = timeSlot.split('-');
-    const normalizedEntryStartTime = normalizeTimeFormat(startTime);
-    const normalizedEntryEndTime = normalizeTimeFormat(endTime);
-    
-    // Get minutes for easier comparison
-    const entryStartMins = convertToMinutes(normalizedEntryStartTime);
-    const entryEndMins = convertToMinutes(normalizedEntryEndTime);
-    
-    // Map for display slots (PM hours)
-    const timeMap = {
-        '01:00': '13:00', '01:30': '13:30', 
-        '02:00': '14:00', '02:30': '14:30',
-        '03:00': '15:00', '03:30': '15:30', 
-        '04:00': '16:00', '04:30': '16:30',
-        '05:00': '17:00', '05:30': '17:30', 
-        '06:00': '18:00', '06:30': '18:30',
-        '07:00': '19:00'
-    };
-
-    // Check if we need mapping (only for PM display hours)
-    const mappedSlotStart = timeMap[slotStartStr] || slotStartStr;
-    const mappedSlotEnd = timeMap[slotEndStr] || slotEndStr;
-    
-    const slotStartMins = convertToMinutes(mappedSlotStart);
-    const slotEndMins = convertToMinutes(mappedSlotEnd);
-    
-    // Entry overlaps with slot if: entry starts before/at slot end AND entry ends after/at slot start
-    return (entryStartMins < slotEndMins && entryEndMins > slotStartMins);
-}
-
-function getSessionName(session) {
-    switch(session) {
-        case '2021': return "1st Semester";
-        case '2022': return "3rd Semester";
-        case '2023': return "5th Semester";
-        case '2024': return "7th Semester";
-        default: return "";
-    }
-}
-
-function groupEntriesBySession(entries) {
-    const groups = {};
-    entries.forEach(entry => {
-        if (!groups[entry.session]) {
-            groups[entry.session] = [];
-        }
-        groups[entry.session].push(entry);
-    });
-    return groups;
-}
-
-function getUniqueCourses(entries) {
-    const uniqueCourses = {};
-    entries.forEach(entry => {
-        if (!uniqueCourses[entry.courseCode]) {
-            uniqueCourses[entry.courseCode] = {
-                courseCode: entry.courseCode,
-                courseName: entry.courseName,
-                creditHours: entry.creditHours,
-                teacherName: entry.teacherName,
-                venue: entry.venue,
-                isLab: entry.isLab
-            };
-        }
-    });
-    return Object.values(uniqueCourses);
-}
-
-// Helper function to generate main timetable data
-function generateMainTableData(entries, days, timeSlots) {
-    const tableData = [];
-    days.forEach(day => {
-        const dayEntries = entries.filter(entry => entry.day === day);
-        if (dayEntries.length === 0) return;
-        
-        const daySessions = [...new Set(dayEntries.map(entry => entry.session))].sort();
-        daySessions.forEach((session, index) => {
-            const row = [];
-            row.push(index === 0 ? day : '');
-            row.push(session);
-            
-            const sessionEntries = dayEntries.filter(entry => 
-                entry.session.toString() === session.toString());
-            
-            let skipSlots = 0;
-            for (let i = 0; i < timeSlots.length; i++) {
-                if (skipSlots > 0) {
-                    skipSlots--;
-                    continue;
-                }
-                
-                const slotParts = timeSlots[i].split('-');
-                const slotStart = slotParts[0];
-                const slotEnd = slotParts[1];
-                
-                const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
-                
-                if (entry) {
-                    const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                    const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                    const spanCount = Math.ceil((entryEndMinutes - entryStartMinutes) / 30);
-                    const cellContent = entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode;
-                    row.push(cellContent);
-                    skipSlots = spanCount - 1;
-                } else {
-                    row.push('');
-                }
-            }
-            tableData.push(row);
-        });
-    });
-    return tableData;
-}
-
-// Helper function to get unique courses for a session
-function getUniqueCoursesForSession(sessionEntries) {
-    const uniqueCourses = {};
-    sessionEntries.forEach(entry => {
-        if (!uniqueCourses[entry.courseCode]) {
-            uniqueCourses[entry.courseCode] = entry;
-        }
-    });
-    return uniqueCourses;
-}
-
-// Helper function to generate course table data
-function generateCourseTableData(sessionEntries) {
-    const uniqueCourses = getUniqueCoursesForSession(sessionEntries);
-    return Object.values(uniqueCourses).map(course => [
-        course.courseCode,
-        course.courseName,
-        course.creditHours,
-        course.teacherName || '',
-        course.venue
-    ]);
-}
-
-// Helper function to style table cells
-function styleTableCells(data) {
-    if (data.section === 'body') {
-        const session = data.row.cells[1].text;
-        if (data.column.index < 2) {
-            if (data.column.index === 0) {
-                data.cell.styles.fillColor = [73, 124, 15];
-                data.cell.styles.textColor = [255, 255, 255];
-                data.cell.styles.fontStyle = 'bold';
-            } else {
-                data.cell.styles.fillColor = [240, 240, 240];
-            }
-        } else if (data.row.cells[1].text) {
-            if (data.row.cells[data.column.index].text) {
-                const isLab = data.row.cells[data.column.index].text.includes('Lab');
-                if (isLab) {
-                    data.cell.styles.fillColor = [255, 243, 205];
-                } else {
-                    switch(session) {
-                        case '2021': data.cell.styles.fillColor = [242, 239, 255]; break;
-                        case '2022': data.cell.styles.fillColor = [232, 247, 232]; break;
-                        case '2023': data.cell.styles.fillColor = [231, 244, 255]; break;
-                        case '2024': data.cell.styles.fillColor = [255, 251, 235]; break;
-                        default: data.cell.styles.fillColor = [240, 240, 240];
-                    }
-                }
-            } else {
-                switch(session) {
-                    case '2021': data.cell.styles.fillColor = [250, 249, 255]; break;
-                    case '2022': data.cell.styles.fillColor = [248, 253, 248]; break;
-                    case '2023': data.cell.styles.fillColor = [247, 251, 255]; break;
-                    case '2024': data.cell.styles.fillColor = [255, 254, 250]; break;
-                    default: data.cell.styles.fillColor = [255, 255, 255];
-                }
-            }
-        }
-    } else if (data.section === 'head') {
-        data.cell.styles.fillColor = [73, 124, 15];
-        data.cell.styles.textColor = [255, 255, 255];
-        data.cell.styles.fontStyle = 'bold';
-    }
-}
-
-// Helper function to determine semester number based on session year
-function getSemesterNumber(sessionYear) {
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-    const isFall = currentMonth >= 6 && currentMonth <= 11;
-    
-    if (isFall) {
-        const yearDiff = currentYear - sessionYear;
-        if (yearDiff === 0) return "1st";
-        else if (yearDiff === 1) return "3rd";
-        else if (yearDiff === 2) return "5th";
-        else if (yearDiff === 3) return "7th";
-        else return "";
-    } else {
-        const yearDiff = (currentYear-1) - sessionYear;
-        if (yearDiff === 0) return "2nd";
-        else if (yearDiff === 1) return "4th";
-        else if (yearDiff === 2) return "6th";
-        else if (yearDiff === 3) return "8th";
-        else return "";
-    }
-}
-
-// Comment out this entire section to avoid conflicts
-/*
-document.getElementById('loginForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value.trim();
-    // ... rest of the login handler code
-});
-*/
-
-// Main application initialization function
-function initializeApplication() {
-  // Prevent multiple initializations
-  if (window._appInitialized) {
-    console.log("Application already initialized, skipping");
-    return;
-  }
-  
-  // Don't show loading indicator on DisplayTimetable page
-  let loadingElement = null;
-  if (window.location.href.includes('AdminPanel.html')) {
-    loadingElement = showLoading("Loading application...");
-  }
-  
-  window._appInitialized = true; // Set the flag
-  
-  try {
-    // Check login status first
-    checkLogin();
-    
-    // Run initialization in proper sequence with delays
-    setTimeout(() => {
-      if (window.location.href.includes('AdminPanel.html')) {
-        // Make sure DOM is fully loaded before manipulating it
-        document.addEventListener('DOMContentLoaded', function() {
-          // Admin panel specific initialization
-          autoUpdateSessionOptions();
-          setupEventHandlers();
-        });
-        
-        // If DOMContentLoaded has already fired, run immediately
-        if (document.readyState === 'complete' || document.readyState === 'interactive') {
-          autoUpdateSessionOptions();
-          setupEventHandlers();
-        }
-        
-        // Delay data operations to ensure Firebase is ready
-        setTimeout(() => {
-          loadAndDisplayEntries()
-            .then(() => dataManager.importFromEntries())
-            .then(() => populateDataLists())
-            .then(() => setupDataListHandlers())
-            .then(() => {
-              // Remove loading indicator when done
-              if (loadingElement) hideLoading();
-            })
-            .catch(error => {
-              handleError(error, "initializeApplication", false);
-              if (loadingElement) hideLoading();
-            });
-        }, 500);
-      } else {
-        // Just load entries for display timetable
-        loadAndDisplayEntries();
-      }
-    }, 300);
-
-    // Initialize time range inputs with stored values
-    const timetableStartTime = document.getElementById('timetableStartTime');
-    const timetableEndTime = document.getElementById('timetableEndTime');
-    if (timetableStartTime && timetableEndTime) {
-        timetableStartTime.value = localStorage.getItem('timetableStartTime') || '08:00';
-        timetableEndTime.value = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
-    }
-  } catch (error) {
-    handleError(error, "initializeApplication", false);
-    if (loadingElement) hideLoading();
-  }
-}
-
-// Clean up DOMContentLoaded listener - single initialization point
-document.addEventListener('DOMContentLoaded', function() {
-  if (document.readyState === 'loading') {
-    setTimeout(initializeApplication, 100);
-  } else {
-    initializeApplication();
-  }
-});
-
-// Make sure this is properly waiting for the DOM to be ready
-document.addEventListener('DOMContentLoaded', function() {
-  autoUpdateSessionOptions();
-});
-
-// Replace the setupEventHandlers function to ensure it only registers listeners once
-function setupEventHandlers() {
-  // Check if we've already set up the handlers to avoid duplicates
-  if (window._eventHandlersInitialized) return;
-  window._eventHandlersInitialized = true;
-  
-  // Set up event handlers for buttons
-  const logoutBtn = document.getElementById('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', handleLogout);
-  }
-  
-  const generatePdfBtn = document.getElementById('generatePdf');
-  if (generatePdfBtn) {
-    generatePdfBtn.addEventListener('click', handleGeneratePdf);
-  }
-  
-  const viewStoredDataBtn = document.getElementById('viewStoredData');
-  if (viewStoredDataBtn) {
-    viewStoredDataBtn.addEventListener('click', displayStoredData);
-  }
-  
-  const clearAllEntriesBtn = document.getElementById('clearAllEntries');
-  if (clearAllEntriesBtn) {
-    clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
-  }
-  
-  const timetableForm = document.getElementById('timetableForm');
-  if (timetableForm) {
-    timetableForm.addEventListener('submit', handleFormSubmit);
-  }
-
-  const updateTimeRangeBtn = document.getElementById('updateTimeRange');
-  if (updateTimeRangeBtn) {
-    updateTimeRangeBtn.addEventListener('click', function() {
-        const startTime = document.getElementById('timetableStartTime').value;
-        const endTime = document.getElementById('timetableEndTime').value;
-        
-        // Validate that end time is after start time
-        if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
-            showToastMessage('End time must be after start time', 'error');
-            return;
-        }
-        
-        // Save to localStorage for persistence
-        localStorage.setItem('timetableStartTime', startTime);
-        localStorage.setItem('timetableEndTime', endTime);
-        
-        // Refresh the display
-        loadAndDisplayEntries();
-        
-        // Use toast notification instead of alert
-        showToastMessage('Time range updated successfully!', 'success');
-    });
-  }
-}
-
-// Handle logout with better cleanup
-function handleLogout() {
-  // Clear all session data
-  sessionStorage.removeItem('authToken');
-  sessionStorage.removeItem('loggedIn');
-  sessionStorage.removeItem('currentUser');
-  sessionStorage.removeItem('userRole');
-  
-  // Redirect to login page
-  window.location.href = 'AdminLogin.html';
-}
-
-// Handle form submission
-async function handleFormSubmit(e) {
-  e.preventDefault();
-  
-  try {
-    // Get form values
-    const courseCode = document.getElementById('courseCode').value.trim();
-    const courseName = document.getElementById('courseName').value.trim();
-    const creditHours = document.getElementById('creditHours').value.trim();
-    const venue = document.getElementById('venue').value.trim();
-    const teacherName = document.getElementById('teacherName').value.trim();
-    const session = document.getElementById('session').value;
-    const startTime = document.getElementById('startTime').value;
-    const endTime = document.getElementById('endTime').value;
-    const isLab = document.getElementById('isLab').checked;
-    
-    // Get selected days
-    const selectedDays = [];
-    document.querySelectorAll('input[name="day"]:checked').forEach(checkbox => {
-      selectedDays.push(checkbox.value);
-    });
-    
-    // Basic validation
-    if (!courseCode || !courseName || !venue || !startTime || !endTime || selectedDays.length === 0) {
-      alert('Please fill all required fields and select at least one day');
-      return;
-    }
-    
-    if (new Date(`2000-01-01T${startTime}`) >= new Date(`2000-01-01T${endTime}`)) {
-      alert('End time must be after start time');
-      return;
-    }
-    
-    // Add entries for each selected day
-    let count = 0;
-    let errors = [];
-    
-    for (const day of selectedDays) {
-      const entry = {
-        day,
-        session,
-        courseCode,
-        courseName,
-        creditHours,
-        teacherName,
-        venue,
-        startTime,
-        endTime,
-        isLab
-      };
-      
-      const result = await addTimetableEntry(entry);
-      if (result.success) {
-        count++;
-      } else {
-        errors.push(`Failed to add entry for ${day}: ${result.error}`);
-      }
-    }
-    
-    if (errors.length > 0) {
-      alert(`Added ${count} entries, but encountered ${errors.length} errors:\n${errors.join('\n')}`);
-    } else {
-      alert(`Added ${count} entries successfully!`);
-    }
-    
-    this.reset();
-    await loadAndDisplayEntries();
-  } catch (error) {
-    handleError(error, "handleFormSubmit");
-  }
-}
-
-// Helper function to format time for timetable
-function formatTimeFromInput(timeString) {
-    if (!timeString) return '';
-    const [hours, minutes] = timeString.split(':');
-    return `${hours}:${minutes}`;
-}
-
-// Function to display stored data in modal
-function displayStoredData() {
-    const modal = document.getElementById('dataModal');
-    const closeBtn = document.querySelector('#dataModal .close');
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    try {
-        const teacherNames = dataManager.getData(dataManager.keys.teacherNames);
-        const venues = dataManager.getData(dataManager.keys.venues);
-        const courseNames = dataManager.getData(dataManager.keys.courseNames);
-        const courseCodes = dataManager.getData(dataManager.keys.courseCodes);
-        const teacherNamesContainer = document.getElementById('teacherNamesList');
-        teacherNamesContainer.innerHTML = '';
-        teacherNames.forEach(name => {
-            const div = document.createElement('div');
-            div.className = 'data-item';
-            div.textContent = name;
-            teacherNamesContainer.appendChild(div);
-        });
-        const venuesContainer = document.getElementById('venuesList');
-        venuesContainer.innerHTML = '';
-        venues.forEach(venue => {
-            const div = document.createElement('div');
-            div.className = 'data-item';
-            div.textContent = venue;
-            venuesContainer.appendChild(div);
-        });
-        const courseNamesContainer = document.getElementById('courseNamesList');
-        courseNamesContainer.innerHTML = '';
-        courseNames.forEach(name => {
-            const div = document.createElement('div');
-            div.className = 'data-item';
-            div.textContent = name;
-            courseNamesContainer.appendChild(div);
-        });
-        const courseCodesContainer = document.getElementById('courseCodesList');
-        courseCodesContainer.innerHTML = '';
-        courseCodes.forEach(code => {
-            const div = document.createElement('div');
-            div.className = 'data-item';
-            div.textContent = code;
-            courseCodesContainer.appendChild(div);
-        });
-        const courseData = document.getElementById('courseData');
-        courseData.innerHTML = '';
-        const uniqueCourses = {};
-        timetableEntries.forEach(entry => {
-            if (entry.courseCode && !uniqueCourses[entry.courseCode]) {
-                uniqueCourses[entry.courseCode] = entry;
-            }
-        });
-        Object.values(uniqueCourses).forEach(course => {
-            const row = document.createElement('tr');
-            const codeCell = document.createElement('td');
-            codeCell.textContent = course.courseCode || '';
-            const nameCell = document.createElement('td');
-            nameCell.textContent = course.courseName || '';
-            const hoursCell = document.createElement('td');
-            hoursCell.textContent = course.creditHours || '';
-            const teacherCell = document.createElement('td');
-            teacherCell.textContent = course.teacherName || '';
-            const venueCell = document.createElement('td');
-            venueCell.textContent = course.venue || '';
-            row.appendChild(codeCell);
-            row.appendChild(nameCell);
-            row.appendChild(hoursCell);
-            row.appendChild(teacherCell);
-            row.appendChild(venueCell);
-            courseData.appendChild(row);
-        });
-        modal.style.display = 'block';
-        closeBtn.onclick = function() {
-            modal.style.display = 'none';
-        };
-        window.onclick = function(event) {
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        };
-        tabBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                tabBtns.forEach(b => b.classList.remove('active'));
-                tabContents.forEach(c => c.classList.remove('active'));
-                btn.classList.add('active');
-                const tabId = btn.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-            });
-        });
-    } catch (error) {
-        handleError(error, "displayStoredData");
-    }
-}
-
-// Populate the data lists in the admin panel
-function populateDataLists() {
-    populateListView('teacherNamesListView', dataManager.keys.teacherNames);
-    populateListView('venuesListView', dataManager.keys.venues);
-    populateListView('courseNamesListView', dataManager.keys.courseNames);
-    populateListView('courseCodesListView', dataManager.keys.courseCodes);
-}
-
-// Replace the old function with this async version:
-async function populateListView(elementId, dataKey) {
-    try {
-        const listContainer = document.getElementById(elementId);
-        if (!listContainer) return;
-        const items = await dataManager.getData(dataKey);
-        listContainer.innerHTML = '';
-        if (items.length === 0) {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.className = 'empty-list-message';
-            emptyMessage.textContent = 'No items yet. Add some using the form below.';
-            listContainer.appendChild(emptyMessage);
-            return;
-        }
-        items.forEach(item => {
-            const listItem = document.createElement('div');
-            listItem.className = 'list-item';
-            const itemText = document.createElement('span');
-            itemText.className = 'list-item-text';
-            itemText.textContent = item;
-            const actions = document.createElement('div');
-            actions.className = 'list-item-actions';
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'danger small';
-            deleteBtn.textContent = 'Delete';
-            deleteBtn.addEventListener('click', async () => {
-                try {
-                    await dataManager.removeItem(dataKey, item);
-                    await populateListView(elementId, dataKey);
-                } catch (error) {
-                    handleError(error, "populateListView - deleteBtn");
-                }
-            });
-            actions.appendChild(deleteBtn);
-            listItem.appendChild(itemText);
-            listItem.appendChild(actions);
-            listContainer.appendChild(listItem);
-        });
-    } catch (error) {
-        handleError(error, "populateListView");
-    }
-}
-
-// Delete an item from a data list
-function deleteListItem(dataKey, item) {
-    try {
-        if (confirm(`Are you sure you want to delete "${item}"?`)) {
-            const data = dataManager.getData(dataKey);
-            const updatedData = data.filter(dataItem => dataItem !== item);
-            dataManager.saveData(dataKey, updatedData);
-        }
-    } catch (error) {
-        handleError(error, "deleteListItem");
-    }
-}
-
-// Set up handlers for adding new items to data lists
-function setupDataListHandlers() {
-    setupAddItemHandler('addTeacherBtn', 'newTeacherName', dataManager.keys.teacherNames, 'teacherNamesListView');
-    setupAddItemHandler('addVenueBtn', 'newVenue', dataManager.keys.venues, 'venuesListView');
-    setupAddItemHandler('addCourseNameBtn', 'newCourseName', dataManager.keys.courseNames, 'courseNamesListView');
-    setupAddItemHandler('addCourseCodeBtn', 'newCourseCode', dataManager.keys.courseCodes, 'courseCodesListView');
-}
-
-// Set up handler for adding a new item to a list
-function setupAddItemHandler(buttonId, inputId, dataKey, listElementId) {
-    const addBtn = document.getElementById(buttonId);
-    if (!addBtn) return;
-    addBtn.addEventListener('click', () => {
-        try {
-            const input = document.getElementById(inputId);
-            const value = input.value.trim();
-            if (value) {
-                dataManager.addItem(dataKey, value);
-                populateListView(listElementId, dataKey);
-                input.value = '';
-            }
-        } catch (error) {
-            handleError(error, "setupAddItemHandler");
-        }
-    });
-}
-
-// Setup autocomplete for input fields
-async function setupAutocomplete(inputElement, listId, dataKey) {
-    try {
-        if (!inputElement) return;
-        let datalist = document.getElementById(listId);
-        if (!datalist) {
-            datalist = document.createElement('datalist');
-            datalist.id = listId;
-            document.body.appendChild(datalist);
-        }
-        inputElement.setAttribute('list', listId);
-        const items = await dataManager.getData(dataKey);
-        datalist.innerHTML = '';
-        items.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item;
-            datalist.appendChild(option);
-        });
-    } catch (error) {
-        handleError(error, "setupAutocomplete");
-    }
-}
-
-// Define hardcoded time slots from 8:00am to 1:00pm with half hour intervals in 12-hour format
-function getHardcodedTimeSlots() {
-    const slots = [];
-    for (let hour = 8; hour < 13; hour++) {
-        const formattedHour = hour.toString().padStart(2, '0');
-        slots.push(`${formattedHour}:00-${formattedHour}:30`);
-        if (hour === 12) {
-            slots.push(`${formattedHour}:30-13:00`);
-        } else {
-            const nextHour = (hour + 1).toString().padStart(2, '0');
-            slots.push(`${formattedHour}:30-${nextHour}:00`);
-        }
-    }
-    return slots;
-}
-
-// Generate dynamic time slots with configurable start and end times
-function getDynamicTimeSlots(startTime = "08:00", endTime = "13:00") {
-    const slots = [];
-    
-    // Validate and normalize input times
-    startTime = normalizeTimeFormat(startTime);
-    endTime = normalizeTimeFormat(endTime);
-    
-    // Convert to minutes for easier calculation
-    let currentMinutes = convertToMinutes(startTime);
-    const endMinutes = convertToMinutes(endTime);
-    
-    // Generate slots in 30 minute increments
-    while (currentMinutes < endMinutes) {
-        // Format current time
-        const startHour = Math.floor(currentMinutes / 60).toString().padStart(2, '0');
-        const startMin = (currentMinutes % 60).toString().padStart(2, '0');
-        
-        // Add 30 minutes for slot end
-        const nextMinutes = currentMinutes + 30;
-        const endHour = Math.floor(nextMinutes / 60).toString().padStart(2, '0');
-        const endMin = (nextMinutes % 60).toString().padStart(2, '0');
-        
-        // Create slot string
-        const slot = `${startHour}:${startMin}-${endHour}:${endMin}`;
-        slots.push(slot);
-        
-        // Move to next slot
-        currentMinutes = nextMinutes;
-    }
-    
-    return slots;
-}
-
-// Update renderTimetable function to add session data attributes and time-slot-end class
-function renderTimetable(entries) {
-    const tableBody = document.getElementById('timetableBody');
-    const table = document.getElementById('timetableDisplay');
-    if (!tableBody || !table) return;
-
-    // Clear previous content
-    tableBody.innerHTML = '';
-    
-    // Reset and prepare header
-    const thead = table.querySelector('thead');
-    if (thead) {
-        const headerRow = thead.querySelector('tr');
-        // Keep only Day and Session columns
-        while (headerRow.children.length > 2) {
-            headerRow.removeChild(headerRow.lastChild);
-        }
-    }
-
-    if (!entries || entries.length === 0) {
-        renderEmptyTimetableGrid();
-        return;
-    }
-    
-    // Use dynamic time slots
-    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
-    const timeSlots = getDynamicTimeSlots(startTime, endTime);
-    
-    // Add time slots to header without AM/PM format
-    if (thead && timeSlots.length > 0) {
-        const headerRow = thead.querySelector('tr');
-        timeSlots.forEach(slot => {
-            const th = document.createElement('th');
-            
-            // Convert the slot to 12-hour format display
-            const [start, end] = slot.split('-');
-            const startHour = parseInt(start.split(':')[0]);
-            const endHour = parseInt(end.split(':')[0]);
-            
-            // Format for 12-hour display without AM/PM
-            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
-            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
-            
-            // Add minutes part
-            const startMinutes = start.split(':')[1];
-            const endMinutes = end.split(':')[1];
-            
-            // No AM/PM as requested
-            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
-            
-            // ADD THIS LINE - smaller font for time slot headers
-            th.style.fontSize = '10px'; // Reduced font size for header time slots
-            
-            headerRow.appendChild(th);
-        });
-    }
-
-    // Create table rows for each day - ALWAYS show all days and all sessions
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const allSessions = ['2021', '2022', '2023', '2024']; // Show all four sessions
-    
-    days.forEach(day => {
-        // Filter entries for this day
-        const dayEntries = entries.filter(entry => entry.day === day);
-        
-        // For each session - always show ALL sessions
-        allSessions.forEach((session, sessionIndex) => {
-            const row = document.createElement('tr');
-            
-            // Add day cell for first session of each day
-            if (sessionIndex === 0) {
-                const dayCell = document.createElement('td');
-                dayCell.className = 'day-cell';
-                dayCell.textContent = day;
-                dayCell.rowSpan = allSessions.length;
-                
-                // ADD EXPLICIT STYLE OVERRIDES
-                dayCell.style.display = "table-cell";
-                dayCell.style.color = "#fff";
-                dayCell.style.fontWeight = "bold";
-                dayCell.style.background = "#388e3c";
-                dayCell.style.fontSize = "11px"; // Decreased from default
-                dayCell.style.width = "10%";     // Ensure enough width
-                
-                row.appendChild(dayCell);
-            }
-            
-            // Add session cell
-            const sessionCell = document.createElement('td');
-            sessionCell.className = 'session-cell';
-            sessionCell.textContent = session;
-            row.appendChild(sessionCell);
-            
-            // Filter entries for this session
-            const sessionEntries = dayEntries.filter(entry => entry.session === session);
-            
-            // Process each time slot to handle spanning cells
-            let skipCells = 0;
-            
-            for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
-                if (skipCells > 0) {
-                    skipCells--;
-                    continue; // Skip this cell as it's covered by a previous colspan
-                }
-                
-                const timeSlot = timeSlots[slotIndex];
-                const [slotStart, slotEnd] = timeSlot.split('-');
-                
-                const entry = findEntryForTimeSlot(sessionEntries, slotStart, slotEnd);
-                
-                if (entry) {
-                    // Calculate how many slots this entry spans
-                    const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                    const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                    
-                    // Calculate how many half-hour slots this covers
-                    const slotSpan = Math.max(1, Math.ceil((entryEndMins - entryStartMins) / 30));
-                    
-                    // Create the cell
-                    const cell = document.createElement('td');
-                    cell.className = 'course-cell';
-                    if (entry.isLab) cell.classList.add('lab-course');
-                    
-                    // Set colspan if needed
-                    if (slotSpan > 1 && slotIndex + slotSpan <= timeSlots.length) {
-                        cell.colSpan = slotSpan;
-                        skipCells = slotSpan - 1; // Skip the next cells
-                    }
-                    
-                    cell.innerHTML = `<div style="font-weight:bold;">${entry.isLab ? entry.courseCode + ' Lab' : entry.courseCode}</div>`;
-                    cell.title = `${entry.courseName}\nTime: ${entry.startTime}-${entry.endTime}\nCredit Hours: ${entry.creditHours}\nTeacher: ${entry.teacherName || 'N/A'}\nVenue: ${entry.venue || 'N/A'}`;
-                    
-                    // Add time-slot-end class to last cell or when a course ends
-                    if (slotIndex < timeSlots.length - 1) {
-                        const nextSlot = timeSlots[slotIndex + 1];
-                        const [_, slotEnd] = timeSlot.split('-');
-                        const [nextStart, __] = nextSlot.split('-');
-                        
-                        // If this entry ends at this slot
-                        if (normalizeTimeFormat(entry.endTime) === slotEnd) {
-                            cell.classList.add('time-slot-end');
-                        }
-                    }
-                    
-                    // If it's the last slot in the row
-                    if (slotIndex === timeSlots.length - 1) {
-                        cell.classList.add('time-slot-end');
-                    }
-                    
-                    row.appendChild(cell);
-                } else {
-                    // Check if there's an entry that spans this slot
-                    const spanningEntry = sessionEntries.find(e => {
-                        const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
-                        const entryEndMins = convertToMinutes(normalizeTimeFormat(e.endTime));
-                        const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
-                        const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
-                        
-                        // Entry starts before this slot and ends after slot starts
-                        return entryStartMins < slotStartMins && entryEndMins > slotStartMins;
-                    });
-                    
-                    if (spanningEntry) {
-                        // This slot is covered by a spanning entry that started earlier
-                        // We already handled it with colspan, so skip
-                        continue;
-                    }
-                    
-                    // Empty cell - no entry for this time slot
-                    const cell = document.createElement('td');
-                    cell.innerHTML = '&nbsp;';
-                    cell.style.border = '1px solid #ddd';
-                    cell.style.minWidth = '60px'; // Ensure minimum width
-                    cell.style.height = '30px'; // Ensure minimum height
-                    row.appendChild(cell);
-                }
-            }
-            
-            tableBody.appendChild(row);
-        });
-    });
-}
-
-// Helper function to determine if an entry fits within a time slot
-function doesEntryFitTimeSlot(entry, slotStart, slotEnd) {
-    const entryStartMins = convertToMinutes(normalizeTimeFormat(entry.startTime));
-    const entryEndMins = convertToMinutes(normalizeTimeFormat(entry.endTime));
-    const slotStartMins = convertToMinutes(normalizeTimeFormat(slotStart));
-    const slotEndMins = convertToMinutes(normalizeTimeFormat(slotEnd));
-    
-    // Entry starts at or before slot start and ends at or after slot end
-    return entryStartMins <= slotStartMins && entryEndMins >= slotEndMins;
-}
-
-// Also update the getAllTimeSlots function to use hardcoded slots for PDF generation
-function getAllTimeSlots(entries) {
-    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
-    return getDynamicTimeSlots(startTime, endTime);
-}
-
-function renderHardcodedGrid(showSaturday = false, showSunday = false) {
-    const tableBody = document.getElementById('timetableBody');
-    const table = document.getElementById('timetableDisplay');
-    if (!tableBody || !table) return;
-
-    // Clear previous content
-    tableBody.innerHTML = '';
-
-    // Define days and sessions
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const sessions = ['2021', '2022', '2023', '2024'];
-
-    // Filter days based on checkbox options
-    const filteredDays = days.filter(day => {
-        if (day === 'Saturday' && !showSaturday) return false;
-        if (day === 'Sunday' && !showSunday) return false;
-        return true;
-    });
-
-    // Create table rows for each day and session
-    filteredDays.forEach((day, dayIdx) => {
-        sessions.forEach((session, sessionIdx) => {
-            const row = document.createElement('tr');
-            
-            // Add day cell only for the first session of each day
-            if (sessionIdx === 0) {
-                const dayCell = document.createElement('td');
-                dayCell.className = 'day-cell';
-                dayCell.textContent = day; // This sets the day name
-                dayCell.rowSpan = sessions.length;
-                dayCell.style.display = "table-cell"; // Force visibility
-                dayCell.style.color = "#fff"; // Ensure text is visible
-                dayCell.style.fontWeight = "bold";
-                dayCell.style.background = "#388e3c";
-                row.appendChild(dayCell);
-            }
-            
-            // Add session cell
-            const sessionCell = document.createElement('td');
-            sessionCell.className = 'session-cell';
-            sessionCell.textContent = session;
-            row.appendChild(sessionCell);
-            
-            // Add empty slots with random distribution
-            const slotCount = Math.floor(Math.random() * 5) + 4; // 4-8 slots
-            for (let i = 0; i < slotCount; i++) {
-                const cell = document.createElement('td');
-                cell.innerHTML = '&nbsp;';
-                row.appendChild(cell);
-            }
-            
-            // Fill remaining slots
-            for (let i = slotCount; i < 8; i++) {
-                const cell = document.createElement('td');
-                cell.style.background = "#f4f4f4";
-                row.appendChild(cell);
-            }
-            
-            tableBody.appendChild(row);
-        });
-    });
-}
-
-function renderEmptyTimetableGrid() {
-    const tableBody = document.getElementById('timetableBody');
-   const table = document.getElementById('timetableDisplay');
-    if (!tableBody || !table) return;
-    
-    tableBody.innerHTML = '';
-
-    // Get dynamic time slots
-    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Changed from 13:00 to 17:00
-    const timeSlots = getDynamicTimeSlots(startTime, endTime);
-    
-    // Add time slots to header without AM/PM format
-    const thead = table.querySelector('thead');
-    if (thead) {
-        const headerRow = thead.querySelector('tr');
-        // Keep only Day and Session columns
-        while (headerRow.children.length > 2) {
-            headerRow.removeChild(headerRow.lastChild);
-        }
-        
-        // Add the time slots to header
-        timeSlots.forEach(slot => {
-            const th = document.createElement('th');
-            
-            // Convert the slot to 12-hour format display
-            const [start, end] = slot.split('-');
-            const startHour = parseInt(start.split(':')[0]);
-            const endHour = parseInt(end.split(':')[0]);
-            
-            // Format for 12-hour display without AM/PM
-            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
-            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
-            
-            // Add minutes part
-            const startMinutes = start.split(':')[1];
-            const endMinutes = end.split(':')[1];
-            
-            // No AM/PM as requested
-            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
-            
-            // ADD THIS LINE - smaller font for time slot headers
-            th.style.fontSize = '11px'; // Reduced font size for header time slots
-            
-            headerRow.appendChild(th);
-        });
-    }
-
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const sessions = ['2024', '2023', '2022', '2021'];
-
-    days.forEach((day, dayIdx) => {
-        sessions.forEach((session, sessionIdx) => {
-            const row = document.createElement('tr');
-            if (sessionIdx === 0 && dayIdx > 0) {
-                row.style.borderTop = '4px solid #7cb342';
-            }
-            
-            // Add day cell
-            if (sessionIdx === 0) {
-                const dayCell = document.createElement('td');
-                dayCell.className = 'day-cell';
-                dayCell.textContent = day;
-                dayCell.rowSpan = sessions.length;
-                dayCell.style.display = "table-cell"; 
-                dayCell.style.color = "#fff";
-                dayCell.style.fontWeight = "bold";
-                dayCell.style.background = "#388e3c";
-                dayCell.style.fontSize = "10px"; // Decreased from default
-                dayCell.style.width = "10%";     // Ensure enough width
-                
-                row.appendChild(dayCell);
-            }
-            
-            // Add session cell
-            const sessionCell = document.createElement('td');
-            sessionCell.className = 'session-cell';
-            sessionCell.textContent = session;
-            row.appendChild(sessionCell);
-            
-            // Add empty cells for each time slot
-            timeSlots.forEach(() => {
-                const cell = document.createElement('td');
-                cell.innerHTML = '&nbsp;';
-                cell.style.border = '1px solid #ddd';
-                cell.style.minWidth = '60px'; // Ensure minimum width
-                cell.style.height = '30px'; // Ensure minimum height
-                row.appendChild(cell);
-            });
-            
-            tableBody.appendChild(row);
-        });
-    });
-}
-
-// 1. On page load, call loadAndDisplayEntries
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        loadAndDisplayEntries();
-    }, 100);
-});
-
-// 3. When deleting an entry (e.g., in your delete button handler)
-async function handleDeleteEntry(id) {
-    try {
-        await deleteTimetableEntry(id);
-        await loadAndDisplayEntries();
-    } catch (error) {
-        handleError(error, "handleDeleteEntry");
-    }
-}
-
-// Add this function to scripts/timetable.js
-async function ensureJsPdfLoaded() {
-  // Check if jsPDF is available
-  if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
-    // Check for globally available jsPDF (from CDN)
-    if (typeof jsPDF !== 'undefined') {
-      window.jspdf = { jsPDF };
-    } else {
-      throw new Error("jsPDF library is not loaded. Please check your internet connection.");
-    }
-  }
-  return window.jspdf.jsPDF;
-}
 
 // Add this function to scripts/timetable.js
 async function loadAndDisplayEntries() {
   const loadingEl = showLoading("Loading entries...");
   try {
+    // Get all entries
     const entries = await getAllTimetableEntries();
-    timetableEntries = entries;
-    window.timetableEntries = entries;
-    
-    // Only run these on admin panel
+    window.allTimetableEntries = entries; // Store all entries
+
+    // For admin panel, show all entries
     if (window.location.href.includes('AdminPanel.html')) {
-      displayEntriesInAdmin();
+      window.timetableEntries = entries;
+      displayEntriesInAdmin(entries);
       if (typeof updateStats === 'function') {
-        updateStats();
+        updateStats(entries);
       }
     } else {
-      // For DisplayTimetable, just render the timetable
+      // For timetable display, filter by department
+      const urlParams = new URLSearchParams(window.location.search);
+      const department = urlParams.get('dept');
+      
+      console.log("Department filter applied:", department);
+      
+      // Filter entries by department if requested
+      const filteredEntries = department 
+        ? entries.filter(entry => entry.department === department)
+        : entries;
+      
+      // Store filtered entries for this view
+      window.timetableEntries = filteredEntries;
+      
+      console.log(`Filtered from ${entries.length} to ${filteredEntries.length} entries`);
+      
+      // Render the filtered entries
       if (typeof renderTimetable === 'function') {
-        renderTimetable(entries);
+        renderTimetable(filteredEntries);
       }
     }
   } catch (error) {
@@ -2165,30 +949,30 @@ function hideLoading() {
 }
 
 // Add this function to update the statistics in the admin panel
-function updateStats() {
+function updateStats(entries) {
   try {
     const totalEntriesEl = document.getElementById('totalEntries');
     const activeSessionsEl = document.getElementById('activeSessions');
     const totalCoursesEl = document.getElementById('totalCourses');
     const totalTeachersEl = document.getElementById('totalTeachers');
     
-    if (!window.timetableEntries) return;
+    if (!entries) return;
     
     if (totalEntriesEl) 
-      totalEntriesEl.textContent = window.timetableEntries.length;
+      totalEntriesEl.textContent = entries.length;
     
     if (activeSessionsEl) {
-      const uniqueSessions = [...new Set(window.timetableEntries.map(entry => entry.session))].length;
+      const uniqueSessions = [...new Set(entries.map(entry => entry.session))].length;
       activeSessionsEl.textContent = uniqueSessions || 0;
     }
     
     if (totalCoursesEl) {
-      const uniqueCourses = [...new Set(window.timetableEntries.map(entry => entry.courseCode))].length;
+      const uniqueCourses = [...new Set(entries.map(entry => entry.courseCode))].length;
       totalCoursesEl.textContent = uniqueCourses || 0;
     }
     
     if (totalTeachersEl) {
-      const uniqueTeachers = [...new Set(window.timetableEntries
+      const uniqueTeachers = [...new Set(entries
         .filter(entry => entry.teacherName)
         .map(entry => entry.teacherName))].length;
       totalTeachersEl.textContent = uniqueTeachers || 0;
@@ -2302,9 +1086,15 @@ function findEntryForTimeSlot(entries, slotStart, slotEnd) {
   return entry;
 }
 
-// Enhanced real-time timetable updates function
+// Modified setupRealtimeUpdates function to avoid firestore reference error
 function setupRealtimeUpdates() {
   try {
+    // Modified to handle missing firestore reference
+    if (window._realtimeUpdatesFailing) {
+      console.log("Real-time updates previously failed, not retrying");
+      return; // Stop trying after too many failures
+    }
+    
     // Add visual indicator for real-time status
     let statusIndicator = document.getElementById('realtime-status');
     if (!statusIndicator && !window.location.href.includes('AdminPanel.html')) {
@@ -2321,8 +1111,14 @@ function setupRealtimeUpdates() {
       if (statusIndicator) statusIndicator.style.background = 'rgba(234,67,53,0.8)';
       if (statusIndicator) statusIndicator.textContent = 'Connecting...';
       
-      // Retry with a shorter interval
-      setTimeout(setupRealtimeUpdates, 500);
+      // Retry with a shorter interval, but limit retries
+      window._realtimeUpdateRetries = (window._realtimeUpdateRetries || 0) + 1;
+      if (window._realtimeUpdateRetries < 5) {
+        setTimeout(setupRealtimeUpdates, 500);
+      } else {
+        if (statusIndicator) statusIndicator.textContent = 'Connection Failed';
+        window._realtimeUpdatesFailing = true;
+      }
       return;
     }
     
@@ -2335,20 +1131,41 @@ function setupRealtimeUpdates() {
       return;
     }
     
-    // Import required functions with better error handling
-    if (!firestore || !firestore.onSnapshot) {
-      console.error("Firestore onSnapshot not available");
+    // FIXED: Don't rely on global firestore - use the imported functions directly from the module
+    // This avoids the ReferenceError: firestore is not defined
+    
+    // Check if we have access to onSnapshot
+    if (!window.onSnapshotImport) {
+      console.log("onSnapshot not available, skipping real-time updates");
       if (statusIndicator) {
         statusIndicator.style.background = 'rgba(234,67,53,0.8)';
-        statusIndicator.textContent = 'Connection Error';
+        statusIndicator.textContent = 'Updates Disabled';
       }
-      setTimeout(setupRealtimeUpdates, 1000); // Retry after 1 second
+      
+      // Instead, set up a polling mechanism as fallback
+      if (!window._pollingInterval) {
+        window._pollingInterval = setInterval(async () => {
+          try {
+            const entries = await getAllTimetableEntries();
+            renderTimetable(entries);
+          } catch (err) {
+            console.error("Polling error:", err);
+          }
+        }, 10000); // Poll every 10 seconds
+      }
+      
       return;
     }
     
-    const { collection, onSnapshot } = firestore;
-    
     try {
+      // Use the functions stored during setup
+      const collection = window.collectionImport;
+      const onSnapshot = window.onSnapshotImport;
+      
+      if (!collection || !onSnapshot) {
+        throw new Error("Firebase functions not available");
+      }
+      
       // Create the listener with error handling
       window._timetableListener = onSnapshot(
         collection(window.db, "timetableEntries"),
@@ -2373,15 +1190,32 @@ function setupRealtimeUpdates() {
             ...doc.data()
           }));
           
-          // Update global entries
-          window.timetableEntries = entries;
+          // Store all entries in window for reference
+          window.allTimetableEntries = entries;
           
           // Update display based on page
           if (window.location.href.includes('AdminPanel.html')) {
-            displayEntriesInAdmin();
-            if (typeof updateStats === 'function') updateStats();
+            // For admin panel, show ALL entries
+            window.timetableEntries = entries;
+            displayEntriesInAdmin(entries);
+            if (typeof updateStats === 'function') updateStats(entries);
           } else {
-            renderTimetable(entries);
+            // For timetable display, filter by department
+            const urlParams = new URLSearchParams(window.location.search);
+            const department = urlParams.get('dept');
+            
+            console.log("Current URL department parameter:", department);
+            
+            // Only display entries for the current department
+            const filteredEntries = department 
+              ? entries.filter(entry => entry.department === department)
+              : entries;
+            
+            // Set the filtered entries for this page
+            window.timetableEntries = filteredEntries;
+            
+            console.log(`Filtered ${entries.length} entries to ${filteredEntries.length} for department: ${department}`);
+            renderTimetable(filteredEntries);
           }
         },
         (error) => {
@@ -2400,15 +1234,25 @@ function setupRealtimeUpdates() {
       console.log("Real-time listener setup complete");
     } catch (error) {
       console.error("Error setting up onSnapshot:", error);
-      if (statusIndicator) {
-        statusIndicator.style.background = 'rgba(234,67,53,0.8)';
-        statusIndicator.textContent = 'Setup Error';
+      window._realtimeUpdateRetries = (window._realtimeUpdateRetries || 0) + 1;
+      
+      if (window._realtimeUpdateRetries >= 3) {
+        window._realtimeUpdatesFailing = true;
+        if (statusIndicator) {
+          statusIndicator.style.background = 'rgba(234,67,53,0.8)';
+          statusIndicator.textContent = 'Real-time Disabled';
+        }
       }
-      setTimeout(setupRealtimeUpdates, 2000);
     }
   } catch (error) {
     console.error("Error in setupRealtimeUpdates:", error);
-    setTimeout(setupRealtimeUpdates, 2000);
+    // Prevent the infinite retry loop by limiting retries
+    window._realtimeUpdateRetries = (window._realtimeUpdateRetries || 0) + 1;
+    if (window._realtimeUpdateRetries < 3) {
+      setTimeout(setupRealtimeUpdates, 2000);
+    } else {
+      window._realtimeUpdatesFailing = true;
+    }
   }
 }
 
@@ -2468,3 +1312,456 @@ function showToastMessage(message, type = 'info') {
         }
     }, 3000);
 }
+
+// Fix renderEmptyTimetableGrid function in timetable.js
+function renderEmptyTimetableGrid() {
+    console.log("Rendering empty timetable grid");
+    
+    // Get the container by id (which we changed in the HTML)
+    const timetableContainer = document.getElementById('timetable-container');
+    if (!timetableContainer) {
+        console.error("Timetable container not found");
+        return;
+    }
+    
+    // Clear existing content
+    timetableContainer.innerHTML = '';
+    
+    // Create table element with id for later reference
+    const table = document.createElement('table');
+    table.className = 'table';
+    table.id = 'timetableDisplay'; // Add an id for easier reference
+    
+    // Get days and sessions
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const sessions = ['2024', '2023', '2022', '2021'];
+    
+    // Get dynamic time slots
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
+    
+    // Create header row
+    const headerRow = document.createElement('tr');
+    
+    // Add Day header
+    const dayHeader = document.createElement('th');
+    dayHeader.textContent = 'Day';
+    dayHeader.style.fontSize = '14px';
+    headerRow.appendChild(dayHeader);
+    
+    // Add Session header
+    const sessionHeader = document.createElement('th');
+    sessionHeader.textContent = 'Session';
+    sessionHeader.style.fontSize = '14px';
+    headerRow.appendChild(sessionHeader);
+    
+    // Add time slot headers
+    timeSlots.forEach(slot => {
+        const th = document.createElement('th');
+        
+        // Convert the slot to 12-hour format display
+        const [start, end] = slot.split('-');
+        const startHour = parseInt(start.split(':')[0]);
+        const endHour = parseInt(end.split(':')[0]);
+        
+        // Format for 12-hour display without AM/PM
+        let displayStart = startHour > 12 ? (startHour - 12) : startHour;
+        let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
+        
+        // Add minutes part
+        const startMinutes = start.split(':')[1];
+        const endMinutes = end.split(':')[1];
+        
+        th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
+        th.style.fontSize = '11px'; // Smaller font for time slot headers
+        headerRow.appendChild(th);
+    });
+    
+    // Create thead and append header row
+    const thead = document.createElement('thead');
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Create tbody for content
+    const tbody = document.createElement('tbody');
+    tbody.id = 'timetableBody';
+    
+    // Create rows for each day and session
+    days.forEach(day => {
+        sessions.forEach((session, sessionIdx) => {
+            const row = document.createElement('tr');
+            
+            // Add day cell only for the first session
+            if (sessionIdx === 0) {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+                dayCell.textContent = day;
+                dayCell.rowSpan = sessions.length;
+                dayCell.style.display = "table-cell"; 
+                dayCell.style.color = "#fff";
+                dayCell.style.fontWeight = "bold";
+                dayCell.style.background = "#388e3c";
+                dayCell.style.fontSize = "13px"; // Decreased from default
+                dayCell.style.width = "10%";     // Ensure enough width
+                row.appendChild(dayCell);
+            }
+            
+            // Add session cell
+            const sessionCell = document.createElement('td');
+            sessionCell.className = 'session-cell';
+            sessionCell.textContent = session;
+            row.appendChild(sessionCell);
+            
+            // Add empty cells for time slots
+            timeSlots.forEach(() => {
+                const td = document.createElement('td');
+                td.innerHTML = '&nbsp;'; // Non-breaking space to ensure cell has height
+                row.appendChild(td);
+            });
+            
+            tbody.appendChild(row);
+        });
+    });
+    
+    table.appendChild(tbody);
+    timetableContainer.appendChild(table);
+    
+    console.log("Empty timetable grid rendered successfully");
+}
+
+// Add this function to timetable.js
+function setupEventHandlers() {
+    // Check if we've already set up the handlers to avoid duplicates
+    if (window._eventHandlersInitialized) return;
+    window._eventHandlersInitialized = true;
+    
+    console.log("Setting up event handlers");
+    
+    // Set up event handlers for buttons
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    const generatePdfBtn = document.getElementById('generatePdf');
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', handleGeneratePdf);
+    }
+    
+    const viewStoredDataBtn = document.getElementById('viewStoredData');
+    if (viewStoredDataBtn) {
+        viewStoredDataBtn.addEventListener('click', displayStoredData);
+    }
+    
+    const clearAllEntriesBtn = document.getElementById('clearAllEntries');
+    if (clearAllEntriesBtn) {
+        clearAllEntriesBtn.addEventListener('click', deleteAllEntries);
+    }
+    
+    const timetableForm = document.getElementById('timetableForm');
+    if (timetableForm) {
+        timetableForm.addEventListener('submit', handleFormSubmit);
+    }
+    
+    const updateTimeRangeBtn = document.getElementById('updateTimeRange');
+    if (updateTimeRangeBtn) {
+        updateTimeRangeBtn.addEventListener('click', function() {
+            const startTime = document.getElementById('timetableStartTime').value;
+            const endTime = document.getElementById('timetableEndTime').value;
+            
+            // Validate that end time is after start time
+            if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
+                showToastMessage('End time must be after start time', 'error');
+                return;
+            }
+            
+            // Save to localStorage for persistence
+            localStorage.setItem('timetableStartTime', startTime);
+            localStorage.setItem('timetableEndTime', endTime);
+            
+            // Refresh the display
+            loadAndDisplayEntries();
+            
+            // Use toast notification instead of alert
+            showToastMessage('Time range updated successfully!', 'success');
+        });
+    }
+}
+
+// Add this function to timetable.js
+function renderTimetable(entries) {
+    console.log("Rendering timetable with", entries?.length || 0, "entries");
+    
+    // Set window title based on department from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const department = urlParams.get('dept');
+    
+    // Set the department name in the header if applicable
+    const departmentNames = {
+        'cs': 'Computer Science & IT',
+        'eng': 'Engineering',
+        'pharm': 'Pharmacy & HND'
+    };
+    
+    const headerElement = document.querySelector('.ultra-compact-header h1');
+    const subHeaderElement = document.querySelector('.ultra-compact-header h2');
+    
+    if (headerElement && department && departmentNames[department]) {
+        headerElement.textContent = `Time Table - ${departmentNames[department]}`;
+    }
+    
+    if (subHeaderElement && department && departmentNames[department]) {
+        subHeaderElement.textContent = `DEPT. OF ${departmentNames[department].toUpperCase()} - University of Chakwal`;
+    }
+    
+    // Start with empty grid then populate it
+    renderEmptyTimetableGrid();
+    
+    if (!entries || entries.length === 0) {
+        console.log("No entries to display");
+        return;
+    }
+    
+    // Get days and sessions for the timetable
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const allSessions = ['2024', '2023', '2022', '2021'];
+    
+    // Use dynamic time slots
+    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+    const endTime = localStorage.getItem('timetableEndTime') || '17:00'; // Default to 5pm
+    const timeSlots = getDynamicTimeSlots(startTime, endTime);
+    
+    // For each day, session and time slot, find relevant entry
+    const table = document.querySelector('.table');
+    if (!table) return;
+    
+    // For each day-session combination, find entries
+    days.forEach((day, dayIndex) => {
+        allSessions.forEach((session, sessionIndex) => {
+            // Calculate row index (skip header row)
+            const rowIndex = 1 + (dayIndex * allSessions.length) + sessionIndex;
+            const row = table.rows[rowIndex];
+            
+            if (!row) {
+                console.error(`Row not found for day ${day}, session ${session}, index ${rowIndex}`);
+                return;
+            }
+            
+            // For each time slot in the row
+            timeSlots.forEach((slot, slotIndex) => {
+                // Column index (add 2 to account for day and session columns)
+                const colIndex = slotIndex + 2;
+                
+                // Skip if we're beyond available columns
+                if (colIndex >= row.cells.length) {
+                    return; // Skip this slot if the cell doesn't exist
+                }
+                
+                const cell = row.cells[colIndex];
+                
+                // Get entries for this day and session
+                const daySessionEntries = entries.filter(e => 
+                    e.day === day && e.session === session);
+                
+                if (daySessionEntries.length === 0) return;
+                
+                // Find entry that falls in this time slot
+                const [slotStart, slotEnd] = slot.split('-');
+                const entry = findEntryForTimeSlot(daySessionEntries, slotStart, slotEnd);
+                
+                if (entry) {
+                    // Create cell content with course info
+                    cell.textContent = entry.isLab 
+                        ? `${entry.courseCode} Lab` 
+                        : entry.courseCode;
+                    cell.title = `${entry.courseName} (${entry.teacherName || 'TBD'})`;
+                    
+                    // Style cell based on whether it's a lab or regular course
+                    if (entry.isLab) {
+                        cell.style.backgroundColor = '#fff8e1'; // Light yellow
+                        cell.style.fontStyle = 'italic';
+                    } else {
+                        // Use department based colors
+                        if (entry.department === 'cs') {
+                            cell.style.backgroundColor = '#e1f5fe'; // Light blue
+                        } else if (entry.department === 'eng') {
+                            cell.style.backgroundColor = '#e8f5e9'; // Light green
+                        } else if (entry.department === 'pharm') {
+                            cell.style.backgroundColor = '#fff3e0'; // Light orange
+                        } else {
+                            cell.style.backgroundColor = '#f5f5f5'; // Light gray (default)
+                        }
+                    }
+                }
+            });
+        });
+    });
+}
+
+// Fix for handleFormSubmit function
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    
+    try {
+        // Get form values
+        const courseCode = document.getElementById('courseCode').value.trim();
+        const courseName = document.getElementById('courseName').value.trim();
+        const creditHours = document.getElementById('creditHours').value.trim();
+        const venue = document.getElementById('venue').value.trim();
+        const teacherName = document.getElementById('teacherName').value.trim();
+        const session = document.getElementById('session').value;
+        const startTime = document.getElementById('startTime').value;
+        const endTime = document.getElementById('endTime').value;
+        const isLab = document.getElementById('isLab').checked;
+        const department = document.getElementById('department').value; // Make sure department field exists
+        
+        // Add this before the for loop in handleFormSubmit:
+        console.log("Adding entries with department:", department);
+        
+        // Add the entry to selected days - FIX THE DAY CHECKBOX SELECTION ISSUE
+        // The issue might be with the class name or selection method
+        const dayCheckboxes = document.querySelectorAll('input[type="checkbox"][name="day"]');
+        const selectedDays = Array.from(dayCheckboxes)
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+        
+        console.log("Selected days:", selectedDays); // Debug info
+        
+        if (selectedDays.length === 0) {
+            alert("Please select at least one day.");
+            return;
+        }
+        
+        if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
+            alert("End time must be after start time.");
+            return;
+        }
+        
+        const loadingEl = showLoading("Adding entries...");
+        
+        let addedEntries = 0;
+        
+        for (const day of selectedDays) {
+            const entry = {
+                day,
+                session,
+                courseCode,
+                courseName,
+                creditHours,
+                teacherName,
+                venue,
+                startTime,
+                endTime,
+                isLab,
+                department
+            };
+            
+            const result = await addTimetableEntry(entry);
+            
+            if (result.success) {
+                addedEntries++;
+                
+                // Add to suggestion arrays for autocomplete
+                dataManager.addItem(dataManager.keys.teacherNames, teacherName);
+                dataManager.addItem(dataManager.keys.venues, venue);
+                dataManager.addItem(dataManager.keys.courseNames, courseName);
+                dataManager.addItem(dataManager.keys.courseCodes, courseCode);
+            }
+        }
+        
+        hideLoading();
+        showToastMessage(`Added ${addedEntries} entries successfully.`, 'success');
+        
+        // Reset form after submission
+        document.getElementById('timetableForm').reset();
+        
+    } catch (error) {
+        hideLoading();
+        handleError(error, "handleFormSubmit");
+    }
+}
+
+// Add this function to timetable.js
+async function fixExistingEntries() {
+  if (!confirm('Do you want to update all entries without a department to your current department?')) {
+    return;
+  }
+  
+  try {
+    const loadingEl = showLoading("Updating entries...");
+    const entries = await getAllTimetableEntries();
+    const currentDept = document.getElementById('department').value || 'cs';
+    let updated = 0;
+    
+    for (const entry of entries) {
+      if (!entry.department) {
+        // Update entry with the current department
+        await updateDoc(doc(window.db, "timetableEntries", entry.id), {
+          department: currentDept
+        });
+        updated++;
+      }
+    }
+    
+    hideLoading();
+    alert(`Updated ${updated} entries to department: ${currentDept}`);
+    loadAndDisplayEntries();
+  } catch (error) {
+    hideLoading();
+    handleError(error, "fixExistingEntries");
+  }
+}
+
+// Make it available globally
+window.fixExistingEntries = fixExistingEntries;
+
+// Add this helper function
+function verifyDepartments() {
+  const entries = window.allTimetableEntries || [];
+  if (entries.length === 0) {
+    console.log("No entries to verify");
+    return;
+  }
+
+  const departmentCounts = {
+    cs: 0,
+    eng: 0,
+    pharm: 0,
+    undefined: 0,
+    null: 0,
+    other: 0
+  };
+
+  entries.forEach(entry => {
+    if (entry.department === undefined) departmentCounts.undefined++;
+    else if (entry.department === null) departmentCounts.null++;
+    else if (['cs', 'eng', 'pharm'].includes(entry.department)) departmentCounts[entry.department]++;
+    else departmentCounts.other++;
+  });
+
+  console.table(departmentCounts);
+  console.log("Department verification complete:", entries.length, "entries checked");
+  
+  return departmentCounts;
+}
+
+// Make it available
+window.verifyDepartments = verifyDepartments;
+
+// Add at the end of the file
+// Make sure all required functions are available in the global scope
+window.setupFirebase = setupFirebase;
+window.renderEmptyTimetableGrid = renderEmptyTimetableGrid;
+window.initializeApplication = initializeApplication;
+window.loadAndDisplayEntries = loadAndDisplayEntries;
+window.renderTimetable = renderTimetable;
+window.getAllTimeSlots = getAllTimeSlots;
+window.getDynamicTimeSlots = getDynamicTimeSlots;
+window.getAllTimetableEntries = getAllTimetableEntries;
+window.ensureCollectionsExist = ensureCollectionsExist;
+window.setupEventHandlers = setupEventHandlers;
+window.dataManager = dataManager;
+window.handleError = handleError;
+window.showToastMessage = showToastMessage;
+window.setupRealtimeUpdates = setupRealtimeUpdates; // Make sure this is added

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>University Timetable</title>
     <link rel="stylesheet" href="../styles/styles.css">
+    <!-- Load the JavaScript BEFORE the module imports -->
     <script src="../scripts/timetable.js"></script>
 </head>
 <body class="timetable-view">
@@ -14,87 +15,74 @@
         <h2>DEPT. OF CS &amp; IT - University of Chakwal</h2>
     </div>
 
-    <div class="table-container">
-        <table id="timetableDisplay" class="table">
-            <thead>
-                <tr>
-                    <th>Day</th>
-                    <th>Session</th>
-                    <!-- Time slots will be added dynamically -->
-                </tr>
-            </thead>
-            <tbody id="timetableBody">
-                <!-- Table content will be generated dynamically -->
-            </tbody>
-        </table>
+    <!-- Container to hold the timetable -->
+    <div id="timetable-container" class="table-container">
+        <!-- Empty div to be filled by JavaScript -->
     </div>
 
+    <!-- Single module script for Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import * as firestore from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, addDoc, setDoc, doc, 
+                 deleteDoc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
         
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DisplayTimetable initializing...");
             try {
-                // Pass all required Firebase functions
-                window.firestore = firestore; // Make firestore globally available
+                // Get department from URL parameter
+                const urlParams = new URLSearchParams(window.location.search);
+                const department = urlParams.get('dept') || 'cs'; // Default to CS if not specified
                 
-                window.setupFirebase({
-                    initializeApp,
-                    getFirestore: firestore.getFirestore,
-                    collection: firestore.collection,
-                    getDocs: firestore.getDocs,
-                    addDoc: firestore.addDoc,
-                    setDoc: firestore.setDoc,
-                    doc: firestore.doc,
-                    deleteDoc: firestore.deleteDoc,
-                    getDoc: firestore.getDoc,
-                    updateDoc: firestore.updateDoc,
-                    arrayUnion: firestore.arrayUnion,
-                    arrayRemove: firestore.arrayRemove,
-                    onSnapshot: firestore.onSnapshot
-                });
+                // Set the title based on department
+                const departmentNames = {
+                    'cs': 'Computer Science & IT',
+                    'eng': 'Engineering',
+                    'pharm': 'Pharmacy & HND'
+                };
                 
-                // Show empty grid while loading
-                renderEmptyTimetableGrid();
+                document.querySelector('.ultra-compact-header h1').textContent = 
+                    `Time Table - ${departmentNames[department] || 'All Departments'}`;
+                document.querySelector('.ultra-compact-header h2').textContent = 
+                    `DEPT. OF ${departmentNames[department].toUpperCase()} - University of Chakwal`;
                 
-                // Immediate setup with retry mechanism
-                setupRealtimeUpdates();
+                // Store these functions globally so they can be used by setupRealtimeUpdates
+                window.onSnapshotImport = onSnapshot;
+                window.collectionImport = collection;
                 
-                console.log("DisplayTimetable initialization complete");
+                // Call the setupFirebase function with the imported modules
+                if (typeof window.setupFirebase === 'function') {
+                    window.setupFirebase({
+                        initializeApp,
+                        getFirestore,
+                        collection,
+                        getDocs,
+                        addDoc,
+                        setDoc,
+                        doc,
+                        deleteDoc,
+                        getDoc,
+                        updateDoc,
+                        arrayUnion,
+                        arrayRemove,
+                        onSnapshot
+                    });
+                    
+                    // Now we can call other functions that depend on Firebase
+                    if (typeof window.renderEmptyTimetableGrid === 'function') {
+                        window.renderEmptyTimetableGrid();
+                    }
+                    
+                    if (typeof window.setupRealtimeUpdates === 'function') {
+                        window.setupRealtimeUpdates();
+                    }
+                    
+                    console.log("DisplayTimetable initialization complete");
+                } else {
+                    console.error("setupFirebase function not found!");
+                }
             } catch (error) {
                 console.error("Error initializing timetable:", error);
-                renderEmptyTimetableGrid();
             }
-        });
-
-        // In renderTimetable function and renderEmptyTimetableGrid function
-        // around line 1750-1760, modify where it creates the th elements
-
-        // Find this section in renderTimetable:
-        timeSlots.forEach(slot => {
-            const th = document.createElement('th');
-            
-            // Convert the slot to 12-hour format display
-            const [start, end] = slot.split('-');
-            const startHour = parseInt(start.split(':')[0]);
-            const endHour = parseInt(end.split(':')[0]);
-            
-            // Format for 12-hour display without AM/PM
-            let displayStart = startHour > 12 ? (startHour - 12) : startHour;
-            let displayEnd = endHour > 12 ? (endHour - 12) : endHour;
-            
-            // Add minutes part
-            const startMinutes = start.split(':')[1];
-            const endMinutes = end.split(':')[1];
-            
-            // No AM/PM as requested
-            th.textContent = `${displayStart}:${startMinutes}-${displayEnd}:${endMinutes}`;
-            
-            // ADD THIS LINE - smaller font for time slot headers
-            th.style.fontSize = '11px'; // Reduced font size for header time slots
-            
-            headerRow.appendChild(th);
         });
     </script>
 </body>

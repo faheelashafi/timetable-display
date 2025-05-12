@@ -568,7 +568,9 @@
     <nav class="navbar">
         <a class="navbar-brand" href="#">Timetable Admin</a>
         <div class="navbar-nav">
-            <a href="DisplayTimetable.html" class="nav-link">View Timetable</a>
+            <a href="DisplayTimetable.html?dept=cs" class="nav-link">CS Timetable</a>
+            <a href="DisplayTimetable.html?dept=eng" class="nav-link">Engineering Timetable</a>
+            <a href="DisplayTimetable.html?dept=pharm" class="nav-link">Pharmacy Timetable</a>
             <a href="AdminPanel.html" class="nav-link">Admin Panel</a>
             <a href="#" id="logoutBtn" class="nav-link">Logout</a>
         </div>
@@ -633,6 +635,15 @@
                             <input type="text" id="courseName" placeholder="e.g., Programming Fundamentals" required>
                         </div>
                         
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label for="department" style="font-weight: bold;">Department:</label>
+                            <select id="department" required>
+                                <option value="cs">Computer Science & IT</option>
+                                <option value="eng">Engineering</option>
+                                <option value="pharm">Pharmacy & HND</option>
+                            </select>
+                        </div>
+
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="creditHours" style="font-weight: bold;">Credit Hours: </label>
@@ -729,6 +740,8 @@
                             <button id="generatePdf" class="btn" style="background-color: #e74c3c; color: white;">Generate PDF</button>
                             <button id="viewStoredData" class="btn" style="background-color: #3949AB; color: white;">View Data</button>
                             <button id="clearAllEntries" class="btn danger">Delete All</button>
+                            <button id="fixEntriesBtn" class="btn" style="background-color: #FB8C00; color: white;">Fix Department Data</button>
+                            <button onclick="window.verifyDepartments()" class="btn" style="background-color: #9C27B0; color: white;">Verify Departments</button>
                         </div>
                     </div>
                     
@@ -869,6 +882,12 @@
         } catch(error) {
             console.error("Firebase initialization error:", error);
             alert("Failed to initialize application: " + error.message);
+        }
+
+        // Add to setupEventHandlers function in timetable.js
+        const fixEntriesBtn = document.getElementById('fixEntriesBtn');
+        if (fixEntriesBtn) {
+            fixEntriesBtn.addEventListener('click', fixExistingEntries);
         }
     </script>
 </body>
