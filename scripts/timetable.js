@@ -299,11 +299,11 @@ async function generatePDF(department = 'all') {
             continue;
           }
           
-          // Find entry for this slot - only match exact start time
-          const entry = sessionEntries.find(e => 
-            e.day === day && 
-            e.session === session &&
-            isEntryInTimeSlot(e, slotStart, 'exact')
+          // Use the dedicated PDF helper function to find entries for this slot
+          const entry = findEntryForTimeSlot(
+            sessionEntries.filter(e => e.day === day && e.session === session),
+            slotStart,
+            slotEnd
           );
           
           if (entry) {
@@ -556,15 +556,22 @@ function isEntryInTimeSlot(entry, slotStart, mode = 'exact') {
     const entryStartTime = normalizeTimeFormat(entry.startTime);
     const entryEndTime = normalizeTimeFormat(entry.endTime);
     
+    // DEBUG: Log the actual times being compared
+    console.log(`Entry ${entry.courseCode}: ${entryStartTime}-${entryEndTime}, Slot: ${slotStart}`);
+    
     // Convert to minutes for easier comparison
     const entryStartMinutes = convertToMinutes(entryStartTime);
     const entryEndMinutes = convertToMinutes(entryEndTime);
     const slotStartMinutes = convertToMinutes(slotStart);
     const slotEndMinutes = slotStartMinutes + 30; // Default 30-minute slots
     
+    console.log(`Minutes - Entry: ${entryStartMinutes}-${entryEndMinutes}, Slot: ${slotStartMinutes}-${slotEndMinutes}`);
+    
     if (mode === 'exact') {
         // For finding the starting slot, check exact match with start time
-        return entryStartMinutes === slotStartMinutes;
+        const isExactMatch = entryStartMinutes === slotStartMinutes;
+        console.log(`Exact match? ${isExactMatch}`);
+        return isExactMatch;
     } else if (mode === 'span') {
         // For calculating spans, check if entry covers this time slot
         // Entry must start before or at slot start AND end after slot start
@@ -594,6 +601,8 @@ function getDynamicTimeSlots(startTime, endTime) {
     const startMinutes = convertToMinutes(startTime);
     const endMinutes = convertToMinutes(endTime);
     
+    console.log(`Start minutes: ${startMinutes}, End minutes: ${endMinutes}`);
+    
     // Generate slots with 30 minute intervals
     for (let time = startMinutes; time < endMinutes; time += 30) {
         const slotStartHour = Math.floor(time / 60);
@@ -609,6 +618,7 @@ function getDynamicTimeSlots(startTime, endTime) {
         slots.push(`${formattedStart}-${formattedEnd}`);
     }
     
+    console.log("Generated slots:", slots);
     return slots;
 }
 
