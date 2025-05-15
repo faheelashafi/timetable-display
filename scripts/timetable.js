@@ -923,15 +923,11 @@ const dataManager = {
     }
 };
 
-// Add or update the addEntry function
+// Updated addEntry function to properly handle IDs
 async function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab, department) {
     try {
-        // Create a unique ID for the entry
-        const entryId = Date.now();
-        
-        // Create the entry object
+        // Create entry object WITHOUT a client-side ID
         const entry = {
-            id: entryId,
             day: day,
             session: session,
             courseCode: courseCode,
@@ -943,19 +939,26 @@ async function addEntry(day, session, courseCode, courseName, creditHours, teach
             startTime: startTime,
             endTime: endTime,
             isLab: isLab,
-            department: department
+            department: department,
+            timestamp: new Date().toISOString()
         };
         
-        // Add to Firestore
-        await addTimetableEntry(entry);
+        // Add to Firestore and get the Firebase-generated ID
+        const result = await addTimetableEntry(entry);
         
-        return entry;
+        // Return entry with the Firebase ID
+        if (result.success) {
+            return { ...entry, id: result.id };
+        } else {
+            throw new Error(result.error || "Failed to add entry");
+        }
     } catch (error) {
         handleError(error, "addEntry");
+        return null;
     }
 }
 
-// Add this function at an appropriate place in timetable.js
+// Updated function to ensure document ID is preserved
 async function addTimetableEntry(entry) {
     if (!entry) {
         throw new Error("Cannot add empty entry");
@@ -969,12 +972,9 @@ async function addTimetableEntry(entry) {
             }
         }
         
-        // Ensure entry has a timestamp to help with ordering
-        entry.timestamp = new Date().toISOString();
-        
         // Add to Firestore and get the document reference
         const docRef = await addDoc(collection(window.db, "timetableEntries"), entry);
-        console.log(`Entry added with ID: ${docRef.id}`);
+        console.log(`Entry added with Firebase ID: ${docRef.id}`);
         return { success: true, id: docRef.id };
     } catch (error) {
         handleError(error, "addTimetableEntry");
@@ -993,16 +993,30 @@ async function getAllTimetableEntries() {
         }
         
         const querySnapshot = await getDocs(collection(window.db, "timetableEntries"));
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return querySnapshot.docs.map(doc => {
+            // Preserve the Firestore document ID by handling any client ID in the data
+            const data = doc.data();
+            // If data contains its own id field, rename it to prevent overwriting the Firebase ID
+            if (data.id) {
+                data.clientId = data.id;
+                delete data.id;
+            }
+            // Return with Firebase document ID
+            return { id: doc.id, ...data };
+        });
     } catch (error) {
         handleError(error, "getAllTimetableEntries");
         return [];
     }
 }
 
-// Delete a timetable entry by ID
+// Delete a timetable entry by ID - completely rewritten for reliable deletion
 async function deleteTimetableEntry(id) {
     try {
+        // Show detailed logging for debugging
+        console.log(`Deleting entry with ID: ${id}`);
+        
+        // Wait for Firebase initialization
         if (!window.db) {
             await new Promise(resolve => setTimeout(resolve, 300));
             if (!window.db) {
@@ -1010,9 +1024,37 @@ async function deleteTimetableEntry(id) {
             }
         }
         
-        await deleteDoc(doc(window.db, "timetableEntries", id));
+        // Get the document reference
+        const docRef = doc(window.db, "timetableEntries", id);
+        
+        // Verify document exists before attempting deletion
+        const docSnapshot = await getDoc(docRef);
+        if (!docSnapshot.exists()) {
+            console.warn(`Document ${id} does not exist, nothing to delete`);
+            return true; // Return success as there's nothing to delete
+        }
+        
+        // DELETE the document from Firestore
+        await deleteDoc(docRef);
+        console.log(`Document ${id} successfully deleted`);
+        
+        // Update local arrays immediately to reflect the change
+        if (window.allTimetableEntries) {
+            const prevCount = window.allTimetableEntries.length;
+            window.allTimetableEntries = window.allTimetableEntries.filter(e => e.id !== id);
+            console.log(`Updated allTimetableEntries: ${prevCount} → ${window.allTimetableEntries.length}`);
+        }
+        
+        if (window.timetableEntries) {
+            const prevCount = window.timetableEntries.length;
+            window.timetableEntries = window.timetableEntries.filter(e => e.id !== id);
+            console.log(`Updated timetableEntries: ${prevCount} → ${window.timetableEntries.length}`);
+        }
+        
+        // Return success
         return true;
     } catch (error) {
+        console.error(`Error deleting document ${id}:`, error);
         handleError(error, "deleteTimetableEntry");
         return false;
     }
