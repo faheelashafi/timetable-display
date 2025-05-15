@@ -894,7 +894,7 @@ const dataManager = {
 };
 
 // Add or update the addEntry function
-async function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab) {
+async function addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab, department) {
     try {
         // Create a unique ID for the entry
         const entryId = Date.now();
@@ -912,7 +912,8 @@ async function addEntry(day, session, courseCode, courseName, creditHours, teach
             displayTimeSlot: displayTimeSlot,
             startTime: startTime,
             endTime: endTime,
-            isLab: isLab
+            isLab: isLab,
+            department: department
         };
         
         // Add to Firestore
@@ -1652,130 +1653,196 @@ function setupEventHandlers() {
 
 // Properly define the renderTimetable function globally
 function renderTimetable(entries) {
-    console.log("Rendering timetable with", entries?.length || 0, "entries");
+  console.log("Rendering timetable with", entries?.length || 0, "entries");
+  
+  // Get the container
+  const timetableContainer = document.getElementById('timetable-container');
+  if (!timetableContainer) {
+    console.error("Timetable container not found");
+    return;
+  }
+  
+  // Clear existing content
+  timetableContainer.innerHTML = '';
+  
+  // Define our grid dimensions
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const sessions = ['2024', '2023', '2022', '2021'];
+  
+  // Get time slots - these are our columns
+  const startTime = localStorage.getItem('timetableStartTime') || '08:00';
+  const endTime = localStorage.getItem('timetableEndTime') || '17:00';
+  const timeSlots = getDynamicTimeSlots(startTime, endTime);
+  
+  // Create a table element
+  const table = document.createElement('table');
+  table.className = 'table';
+  table.id = 'timetableDisplay';
+  
+  // Create the header row with time slots
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  
+  // Add Day header cell
+  const dayHeader = document.createElement('th');
+  dayHeader.textContent = 'Day';
+  headerRow.appendChild(dayHeader);
+  
+  // Add Session header cell
+  const sessionHeader = document.createElement('th');
+  sessionHeader.textContent = 'Session';
+  headerRow.appendChild(sessionHeader);
+  
+  // Add time slot header cells
+  timeSlots.forEach(slot => {
+    const th = document.createElement('th');
+    th.textContent = slot;
+    th.style.fontSize = '11px';
+    headerRow.appendChild(th);
+  });
+  
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  
+  // Create a grid structure for each session
+  // This will hold our entries before rendering to HTML
+  const gridBySession = {};
+  
+  // Initialize empty grid for each session
+  sessions.forEach(session => {
+    gridBySession[session] = {};
+    days.forEach(day => {
+      gridBySession[session][day] = Array(timeSlots.length).fill(null);
+    });
+  });
+  
+  // Place entries in the grid
+  entries.forEach(entry => {
+    // Clean any problematic course code
+    entry.courseCode = entry.courseCode.replace(/,\s*$/, '');
     
-    // Start with empty grid then populate it
-    renderEmptyTimetableGrid();
-    
-    if (!entries || entries.length === 0) {
-        console.log("No entries to display");
-        return;
+    // Skip entries with missing required data
+    if (!entry.day || !entry.session || !entry.startTime || !entry.endTime) {
+      console.warn("Entry missing required data:", entry);
+      return;
     }
     
-    // Get days and sessions
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const allSessions = ['2024', '2023', '2022', '2021'];
-    
-    // Use dynamic time slots
-    const startTime = localStorage.getItem('timetableStartTime') || '08:00';
-    const endTime = localStorage.getItem('timetableEndTime') || '17:00';
-    const timeSlots = getDynamicTimeSlots(startTime, endTime);
-    
-    // Track cells that are already handled by multi-slot entries
-    const handledCells = {};
-    
-    // For each day and session, process entries
-    days.forEach((day, dayIndex) => {
-        allSessions.forEach((session, sessionIndex) => {
-            // Calculate row index (skip header row)
-            const rowIndex = 1 + (dayIndex * allSessions.length) + sessionIndex;
-            const row = document.querySelector(`#timetableBody tr:nth-child(${rowIndex})`);
-            
-            if (!row) {
-                console.error(`Row not found for day ${day}, session ${session}, index ${rowIndex}`);
-                return;
-            }
-            
-            // Get entries for this day and session
-            const daySessionEntries = entries.filter(e => 
-                e.day === day && e.session === session);
-            
-            if (daySessionEntries.length === 0) return;
-            
-            // Process each entry for this day/session
-            daySessionEntries.forEach(entry => {
-                // Find which time slot the entry starts in
-                let firstSlotIndex = -1;
-                for (let i = 0; i < timeSlots.length; i++) {
-                    const [slotStart] = timeSlots[i].split('-');
-                    if (isEntryInTimeSlot(entry, slotStart, 'exact')) {
-                        firstSlotIndex = i;
-                        break;
-                    }
-                }
-                
-                if (firstSlotIndex !== -1) {
-                    // Calculate how many slots this entry spans
-                    let slotSpan = 0;
-                    const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-                    const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-                    const durationMinutes = entryEndMinutes - entryStartMinutes;
-                    slotSpan = Math.ceil(durationMinutes / 30); // Each slot is 30 minutes
-                    
-                    // Ensure minimum span of 1
-                    if (slotSpan < 1) slotSpan = 1;
-                    
-                    // Skip if column index is beyond table width
-                    const firstCellIndex = firstSlotIndex + 2; // +2 for day and session columns
-                    if (firstCellIndex >= row.cells.length) {
-                        console.warn(`Cell index ${firstCellIndex} out of range for row with ${row.cells.length} cells`);
-                        return;
-                    }
-                    
-                    const firstCell = row.cells[firstCellIndex];
-                    
-                    if (firstCell) {
-                        // Mark cells as handled to avoid repetition
-                        for (let i = 0; i < slotSpan; i++) {
-                            const cellKey = `${rowIndex}-${firstSlotIndex + i + 2}`;
-                            handledCells[cellKey] = true;
-                        }
-                        
-                        // Remove other cells this entry spans, but check boundaries
-                        for (let i = 1; i < slotSpan && (firstCellIndex + 1) < row.cells.length; i++) {
-                            const cellToRemove = row.cells[firstCellIndex + 1]; // Always remove the next cell
-                            if (cellToRemove) {
-                                row.removeChild(cellToRemove);
-                            }
-                        }
-                        
-                        // Set colspan for the first cell
-                        firstCell.colSpan = slotSpan;
-                        
-                        // Style the cell and add content
-                        firstCell.textContent = entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode;
-                        firstCell.title = `${entry.courseName} (${entry.teacherName || 'TBD'})`;
-                        firstCell.className = 'course-cell';
-                        
-                        // Style cell based on type and department
-                        if (entry.isLab) {
-                            firstCell.style.backgroundColor = '#fff8e1'; // Light yellow
-                            firstCell.style.fontStyle = 'italic';
-                            firstCell.classList.add('lab-course');
-                        } else {
-                            // Department based colors
-                            if (entry.department === 'cs') {
-                                firstCell.style.backgroundColor = '#e1f5fe'; // Light blue
-                            } else if (entry.department === 'eng') {
-                                firstCell.style.backgroundColor = '#e8f5e9'; // Light green
-                            } else if (entry.department === 'pharm') {
-                                firstCell.style.backgroundColor = '#fff3e0'; // Light orange
-                            } else {
-                                firstCell.style.backgroundColor = '#f5f5f5'; // Light gray
-                            }
-                        }
-                    }
-                }
-            });
-        });
+    // Find the start slot index
+    const startSlotIndex = timeSlots.findIndex(slot => {
+      const slotStartTime = slot.split('-')[0];
+      return normalizeTimeFormat(entry.startTime) === normalizeTimeFormat(slotStartTime);
     });
+    
+    if (startSlotIndex === -1) {
+      console.warn(`No matching start slot for ${entry.courseCode} at ${entry.startTime}`);
+      return;
+    }
+    
+    // Calculate how many slots this entry spans
+    const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+    const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+    const durationMinutes = entryEndMinutes - entryStartMinutes;
+    const slotSpan = Math.max(Math.ceil(durationMinutes / 30), 1);
+    
+    console.log(`Placing ${entry.courseCode} at day=${entry.day}, session=${entry.session}, startSlot=${startSlotIndex}, span=${slotSpan}`);
+    
+    // Place the entry in the grid with its span info
+    gridBySession[entry.session][entry.day][startSlotIndex] = {
+      entry,
+      span: slotSpan,
+      isStart: true // Mark this as the start cell of the entry
+    };
+    
+    // Mark subsequent slots as taken by this entry
+    for (let i = 1; i < slotSpan; i++) {
+      if (startSlotIndex + i < timeSlots.length) {
+        gridBySession[entry.session][entry.day][startSlotIndex + i] = {
+          entry,
+          isStart: false // This is not the start cell
+        };
+      }
+    }
+  });
+  
+  // Now render the grid to HTML
+  const tbody = document.createElement('tbody');
+  
+  // For each day and session
+  days.forEach((day, dayIndex) => {
+    sessions.forEach((session, sessionIndex) => {
+      const row = document.createElement('tr');
+      
+      // Add day cell only for the first session of each day
+      if (sessionIndex === 0) {
+        const dayCell = document.createElement('td');
+        dayCell.textContent = day;
+        dayCell.rowSpan = sessions.length;
+        dayCell.style.color = "#fff";
+        dayCell.style.fontWeight = "bold";
+        dayCell.style.background = "#388e3c";
+        row.appendChild(dayCell);
+      }
+      
+      // Add session cell
+      const sessionCell = document.createElement('td');
+      sessionCell.textContent = session;
+      sessionCell.style.backgroundColor = "#e8f5e9";
+      row.appendChild(sessionCell);
+      
+      // Now add cells for each time slot
+      for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+        const cellData = gridBySession[session][day][slotIndex];
+        
+        // Skip cells that are continuations of entries
+        if (cellData && !cellData.isStart) continue;
+        
+        const cell = document.createElement('td');
+        
+        if (cellData && cellData.isStart) {
+          // This is an entry's starting cell
+          const entry = cellData.entry;
+          cell.colSpan = cellData.span;
+          cell.textContent = entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode;
+          cell.title = `${entry.courseName || ''} (${entry.teacherName || 'TBD'})`;
+          cell.className = 'course-cell';
+          
+          // Style based on entry type and department
+          if (entry.isLab) {
+            cell.style.backgroundColor = '#fff8e1';
+            cell.style.fontStyle = 'italic';
+          } else {
+            // Department based colors
+            const colors = {
+              'cs': '#e1f5fe',
+              'eng': '#e8f5e9',
+              'pharm': '#fff3e0',
+              '': '#f5f5f5'
+            };
+            cell.style.backgroundColor = colors[entry.department] || '#f5f5f5';
+          }
+        } else {
+          // Empty cell
+          cell.innerHTML = '&nbsp;';
+        }
+        
+        row.appendChild(cell);
+      }
+      
+      tbody.appendChild(row);
+    });
+  });
+  
+  table.appendChild(tbody);
+  timetableContainer.appendChild(table);
+  
+  console.log("Timetable rendered successfully");
 }
 
 // Add the missing renderEmptyTimetableGrid function
 function renderEmptyTimetableGrid() {
     console.log("Rendering empty timetable grid");
     
-    // Get the container by id
+    // Get the container
     const timetableContainer = document.getElementById('timetable-container');
     if (!timetableContainer) {
         console.error("Timetable container not found");
@@ -1788,9 +1855,9 @@ function renderEmptyTimetableGrid() {
     // Create table element with id for later reference
     const table = document.createElement('table');
     table.className = 'table';
-    table.id = 'timetableDisplay'; // Add an id for easier reference
+    table.id = 'timetableDisplay'; 
     
-    // Get days and sessions
+    // Get days and sessions 
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const sessions = ['2024', '2023', '2022', '2021'];
     
@@ -1856,7 +1923,7 @@ function renderEmptyTimetableGrid() {
                 dayCell.className = 'day-cell';
                 dayCell.textContent = day;
                 dayCell.rowSpan = sessions.length;
-                dayCell.style.display = "table-cell"; 
+                dayCell.style.display = "table-cell";
                 dayCell.style.color = "#fff";
                 dayCell.style.fontWeight = "bold";
                 dayCell.style.background = "#388e3c";
@@ -1993,12 +2060,6 @@ function loadAllSuggestionLists() {
     loadSuggestionList(dataManager.keys.courseCodes, 'courseCodesListView');
 }
 
-// Make sure all these functions are available globally
-window.setupEventHandlers = setupEventHandlers;
-window.renderTimetable = renderTimetable;
-window.renderEmptyTimetableGrid = renderEmptyTimetableGrid;
-window.showToastMessage = showToastMessage;
-
 // Define the showToastMessage function
 function showToastMessage(message, type = 'info') {
   // Check if toast container exists, if not, create it
@@ -2045,391 +2106,300 @@ function showToastMessage(message, type = 'info') {
   }, 3000);
 }
 
-// Add the missing handleFormSubmit function
-async function handleFormSubmit(e) {
-  e.preventDefault();
-  
+// Add this function to fix the DisplayTimetable.html error
+function setupAndVerifyDepartmentEntries() {
   try {
-    // Get form values
-    const courseCode = document.getElementById('courseCode').value.trim();
-    const courseName = document.getElementById('courseName').value.trim();
-    const creditHours = document.getElementById('creditHours').value.trim();
-    const venue = document.getElementById('venue').value.trim();
-    const teacherName = document.getElementById('teacherName').value.trim();
-    const session = document.getElementById('session').value;
-    const startTime = document.getElementById('startTime').value;
-    const endTime = document.getElementById('endTime').value;
-    const isLab = document.getElementById('isLab').checked;
-    const department = document.getElementById('department').value;
+    console.log("Setting up department entries verification");
     
-    // Add the entry to selected days
-    const dayCheckboxes = document.querySelectorAll('input[type="checkbox"][name="day"]');
-    const selectedDays = Array.from(dayCheckboxes)
-      .filter(checkbox => checkbox.checked)
-      .map(checkbox => checkbox.value);
+    // Get current department from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const department = urlParams.get('dept') || 'cs';
     
-    console.log("Selected days:", selectedDays);
-    
-    if (selectedDays.length === 0) {
-      alert("Please select at least one day.");
+    if (!window.allTimetableEntries || !window.allTimetableEntries.length) {
+      console.log("No entries to verify yet, will try again when data loads");
+      // Will be handled by the realtime updates once data loads
       return;
     }
     
-    if (convertToMinutes(startTime) >= convertToMinutes(endTime)) {
-      alert("End time must be after start time.");
-      return;
-    }
+    console.log(`Verifying entries for department: ${department}`);
     
-    const loadingEl = showLoading("Adding entries...");
+    // Filter entries for this department 
+    const departmentEntries = window.allTimetableEntries.filter(entry => entry.department === department);
     
-    let addedEntries = 0;
-    const newEntryObjects = []; // Track newly created entries for immediate display
+    // Use these entries to render the timetable
+    renderTimetable(departmentEntries);
     
-    // Log for debugging
-    console.log("Adding entries with department:", department);
-    
-    for (const day of selectedDays) {
-      const entry = {
-        day,
-        session,
-        courseCode,
-        courseName,
-        creditHours,
-        teacherName,
-        venue,
-        startTime,
-        endTime,
-        isLab,
-        department
-      };
-      
-      const result = await addTimetableEntry(entry);
-      
-      if (result.success) {
-        addedEntries++;
-        
-        // Add the newly created entry (with Firestore ID) to our array for immediate display
-        newEntryObjects.push({
-          id: result.id,
-          ...entry
-        });
-        
-        // Add to suggestion arrays for autocomplete
-        dataManager.addItem(dataManager.keys.teacherNames, teacherName);
-        dataManager.addItem(dataManager.keys.venues, venue);
-        dataManager.addItem(dataManager.keys.courseNames, courseName);
-        dataManager.addItem(dataManager.keys.courseCodes, courseCode);
-      }
-    }
-    
-    // Update the local entries cache with the new entries
-    if (window.timetableEntries && Array.isArray(window.timetableEntries)) {
-      window.timetableEntries = [...window.timetableEntries, ...newEntryObjects];
-    } else {
-      window.timetableEntries = newEntryObjects;
-    }
-    
-    // Immediately display the updated entries
-    if (typeof displayEntriesInAdmin === 'function') {
-      displayEntriesInAdmin(window.timetableEntries);
-    }
-    
-    // Update stats with new entry count
-    if (typeof updateStats === 'function') {
-      updateStats(window.timetableEntries);
-    }
-    
-    hideLoading();
-    showToastMessage(`Added ${addedEntries} entries successfully.`, 'success');
-    
-    // Reset form after submission
-    document.getElementById('timetableForm').reset();
-    
-    // Also refresh from server to ensure full synchronization
-    setTimeout(() => {
-      loadAndDisplayEntries();
-    }, 500);
-    
+    console.log(`Found and verified ${departmentEntries.length} entries for ${department}`);
   } catch (error) {
-    hideLoading();
-    handleError(error, "handleFormSubmit");
+    console.error("Error in setupAndVerifyDepartmentEntries:", error);
   }
 }
 
-// Add the fixExistingEntries function
-async function fixExistingEntries() {
-  if (!confirm('Do you want to update all entries without a department to your current department?')) {
-    return;
-  }
-  
+// Add this function to fix the setupEntryFilters error
+function setupEntryFilters() {
   try {
-    const loadingEl = showLoading("Updating entries...");
-    const entries = await getAllTimetableEntries();
-    const currentDept = document.getElementById('department').value || 'cs';
-    let updated = 0;
+    console.log("Setting up entry filters");
     
+    // Get filter elements
+    const sessionFilter = document.getElementById('sessionFilter');
+    const dayFilter = document.getElementById('dayFilter');
+    const resetFiltersBtn = document.getElementById('resetFilters');
+    
+    // Skip if not on the page with filters
+    if (!sessionFilter || !dayFilter || !resetFiltersBtn) {
+      console.log("Filter elements not found, skipping filter setup");
+      return;
+    }
+    
+    // Populate session filter with options
+    window.populateSessionFilter = function() {
+      if (!window.timetableEntries) return;
+      
+      // Get unique sessions from entries
+      const sessions = [...new Set(window.timetableEntries.map(e => e.session))].sort((a, b) => b - a);
+      
+      // Clear existing options except the first "All" option
+      while (sessionFilter.options.length > 1) {
+        sessionFilter.remove(1);
+      }
+      
+      // Add session options
+      sessions.forEach(session => {
+        const option = document.createElement('option');
+        option.value = session;
+        option.textContent = session;
+        sessionFilter.appendChild(option);
+      });
+    };
+    
+    // Apply filters function
+    function applyFilters() {
+      const selectedSession = sessionFilter.value;
+      const selectedDay = dayFilter.value;
+      
+      // If no filters selected, show all entries
+      if (!selectedSession && !selectedDay) {
+        displayEntriesInAdmin(window.timetableEntries);
+        return;
+      }
+      
+      // Filter entries
+      let filteredEntries = [...window.timetableEntries]; // Start with all entries
+      
+      if (selectedSession) {
+        filteredEntries = filteredEntries.filter(e => e.session === selectedSession);
+      }
+      
+      if (selectedDay) {
+        filteredEntries = filteredEntries.filter(e => e.day === selectedDay);
+      }
+      
+      // Update display with filtered entries
+      displayEntriesInAdmin(filteredEntries);
+    }
+    
+    // Set up event listeners
+    sessionFilter.addEventListener('change', applyFilters);
+    dayFilter.addEventListener('change', applyFilters);
+    
+    // Reset filters
+    resetFiltersBtn.addEventListener('click', function() {
+      sessionFilter.value = '';
+      dayFilter.value = '';
+      displayEntriesInAdmin(window.timetableEntries);
+    });
+    
+    // Initial population
+    window.populateSessionFilter();
+  } catch (error) {
+    console.error("Error setting up entry filters:", error);
+  }
+}
+
+// Add this function to fix the fixExistingEntries error in AdminPanel.html
+async function fixExistingEntries() {
+  try {
+    const loadingEl = showLoading("Fixing department data in entries...");
+    
+    // Get all entries
+    const entries = await getAllTimetableEntries();
+    if (!entries || entries.length === 0) {
+      hideLoading();
+      showToastMessage("No entries to fix", "info");
+      return;
+    }
+    
+    console.log(`Attempting to fix ${entries.length} entries`);
+    let fixedCount = 0;
+    
+    // Process each entry
     for (const entry of entries) {
-      if (!entry.department) {
-        // Update entry with the current department
-        await updateDoc(doc(window.db, "timetableEntries", entry.id), {
-          department: currentDept
-        });
-        updated++;
+      // Skip entries that already have a department
+      if (entry.department) {
+        continue;
+      }
+      
+      // Determine department based on courseCode patterns
+      let department = 'cs'; // Default
+      
+      const courseCode = entry.courseCode.toLowerCase();
+      
+      // Simple pattern matching
+      if (courseCode.includes('cs') || courseCode.includes('it') || courseCode.includes('se')) {
+        department = 'cs';
+      } else if (courseCode.includes('eng') || courseCode.includes('ee') || courseCode.includes('ce') || 
+                courseCode.includes('me') || courseCode.includes('civil')) {
+        department = 'eng';
+      } else if (courseCode.includes('pharm') || courseCode.includes('hnd') || 
+                courseCode.includes('bio') || courseCode.includes('chem')) {
+        department = 'pharm';
+      }
+      
+      // Update entry with the determined department
+      if (window.db) {
+        try {
+          await updateDoc(doc(window.db, "timetableEntries", entry.id), {
+            department: department
+          });
+          fixedCount++;
+        } catch (err) {
+          console.error(`Failed to update entry ${entry.id}:`, err);
+        }
       }
     }
     
     hideLoading();
-    alert(`Updated ${updated} entries to department: ${currentDept}`);
-    loadAndDisplayEntries();
+    
+    if (fixedCount > 0) {
+      // Refresh the table
+      loadAndDisplayEntries();
+      showToastMessage(`Fixed department data for ${fixedCount} entries`, "success");
+    } else {
+      showToastMessage("No entries needed fixing", "info");
+    }
   } catch (error) {
     hideLoading();
     handleError(error, "fixExistingEntries");
   }
 }
 
-// Make it available globally
-window.fixExistingEntries = fixExistingEntries;
-
-// Add the verifyDepartments function
-function verifyDepartments() {
-  const entries = window.allTimetableEntries || [];
-  if (entries.length === 0) {
-    console.log("No entries to verify");
-    alert("No entries to verify");
-    return;
-  }
-
-  const departmentCounts = {
-    cs: 0,
-    eng: 0,
-    pharm: 0,
-    undefined: 0,
-    null: 0,
-    other: 0
-  };
-
-  entries.forEach(entry => {
-    if (entry.department === undefined) departmentCounts.undefined++;
-    else if (entry.department === null) departmentCounts.null++;
-    else if (['cs', 'eng', 'pharm'].includes(entry.department)) departmentCounts[entry.department]++;
-    else departmentCounts.other++;
-  });
-
-  console.table(departmentCounts);
+// Add this function to fix the handleFormSubmit error
+async function handleFormSubmit(event) {
+  event.preventDefault();
   
-  // Show results in an alert
-  const message = Object.entries(departmentCounts)
-    .map(([dept, count]) => `${dept}: ${count}`)
-    .join('\n');
+  try {
+    // Get form values
+    const session = document.getElementById('session').value;
+    const department = document.getElementById('department').value;
+    const courseCode = document.getElementById('courseCode').value;
+    const courseName = document.getElementById('courseName').value;
+    const creditHours = document.getElementById('creditHours').value;
+    const teacherName = document.getElementById('teacherName').value;
+    const venue = document.getElementById('venue').value;
+    const startTime = document.getElementById('startTime').value;
+    const endTime = document.getElementById('endTime').value;
+    const isLab = document.getElementById('isLab').checked;
     
-  alert(`Department verification results:\n${message}\n\nTotal: ${entries.length} entries checked`);
-  
-  return departmentCounts;
+    // Get selected days
+    const selectedDays = [];
+    const dayCheckboxes = document.querySelectorAll('input[name="day"]:checked');
+    dayCheckboxes.forEach(checkbox => {
+      selectedDays.push(checkbox.value);
+    });
+    
+    // Validate form
+    if (!session || !courseCode || !startTime || !endTime || selectedDays.length === 0) {
+      showToastMessage("Please fill in all required fields", "error");
+      return;
+    }
+    
+    // Show loading spinner
+    const loadingEl = showLoading("Adding entries...");
+    
+    // Create time slot display format
+    const displayTimeSlot = `${startTime}-${endTime}`;
+    
+    // Add entries for each selected day
+    const addPromises = selectedDays.map(day => {
+      return addEntry(day, session, courseCode, courseName, creditHours, teacherName, venue, displayTimeSlot, startTime, endTime, isLab, department);
+    });
+    
+    // Wait for all entries to be added
+    await Promise.all(addPromises);
+    
+    // Add to autocomplete suggestions
+    await dataManager.addItem(dataManager.keys.courseCodes, courseCode);
+    await dataManager.addItem(dataManager.keys.courseNames, courseName);
+    if (teacherName) await dataManager.addItem(dataManager.keys.teacherNames, teacherName);
+    if (venue) await dataManager.addItem(dataManager.keys.venues, venue);
+    
+    // Reset form
+    document.getElementById('timetableForm').reset();
+    
+    // Update timetable display (will happen automatically via real-time updates)
+    hideLoading();
+    showToastMessage(`Added ${selectedDays.length} entries successfully`, "success");
+  } catch (error) {
+    hideLoading();
+    handleError(error, "handleFormSubmit");
+  }
 }
 
-// Make it available
-window.verifyDepartments = verifyDepartments;
-
-// Fix issue with department filtering in the DisplayTimetable page
-function setupAndVerifyDepartmentEntries() {
-  console.log("Verifying department entries...");
-  const urlParams = new URLSearchParams(window.location.search);
-  const department = urlParams.get('dept');
-  
-  if (!department) {
-    console.log("No department specified in URL");
-    return;
-  }
-  
-  console.log(`Department from URL: ${department}`);
-  
-  // Function to check department data
-  const verifyDepartments = async () => {
-    try {
-      // Get all entries directly from Firestore to ensure fresh data
-      const entries = await getAllTimetableEntries();
-      
-      if (entries.length === 0) {
-        console.log("No entries found in database");
-        showToastMessage("No timetable entries found. Please add some entries first.", "warning");
-        return;
-      }
-      
-      const departmentCounts = {
-        cs: 0,
-        eng: 0,
-        pharm: 0,
-        undefined: 0,
-        null: 0,
-        other: 0
-      };
-      
-      entries.forEach(entry => {
-        if (entry.department === undefined) departmentCounts.undefined++;
-        else if (entry.department === null) departmentCounts.null++;
-        else if (['cs', 'eng', 'pharm'].includes(entry.department)) departmentCounts[entry.department]++;
-        else departmentCounts.other++;
-      });
-      
-      console.log("Department counts:", departmentCounts);
-      
-      // Filter by department
-      const filteredEntries = entries.filter(entry => entry.department === department);
-      console.log(`Filtered from ${entries.length} to ${filteredEntries.length} for ${department}`);
-      
-      if (filteredEntries.length === 0) {
-        // No entries for this department, show message
-        const messageEl = document.createElement('div');
-        messageEl.style.cssText = 'padding: 20px; text-align: center; margin: 20px; background: #f8f9fa; border-radius: 4px;';
-        messageEl.innerHTML = `
-          <h3>No Timetable Entries</h3>
-          <p>There are no entries available for the ${department} department.</p>
-          <p>Please add some entries from the admin panel first.</p>
-          <p><a href="AdminPanel.html">Go to Admin Panel</a></p>
-        `;
-        
-        const container = document.getElementById('timetable-container');
-        if (container) {
-          container.innerHTML = '';
-          container.appendChild(messageEl);
-        }
-        
-        // Show toast message
-        showToastMessage(`No entries found for ${department} department`, "info");
+// Add this function to verify departments in entries
+window.verifyDepartments = async function() {
+  const loadingEl = showLoading("Verifying departments...");
+  try {
+    // Get all entries
+    const entries = await getAllTimetableEntries();
+    
+    if (entries.length === 0) {
+      hideLoading();
+      showToastMessage("No entries to verify", "info");
+      return;
+    }
+    
+    // Count entries by department
+    const deptCounts = {
+      cs: 0,
+      eng: 0,
+      pharm: 0,
+      undefined: 0
+    };
+    
+    // Check each entry
+    entries.forEach(entry => {
+      const dept = entry.department;
+      if (dept) {
+        deptCounts[dept] = (deptCounts[dept] || 0) + 1;
       } else {
-        // Render the timetable with filtered entries
-        window.timetableEntries = filteredEntries;
-        if (typeof renderTimetable === 'function') {
-          renderTimetable(filteredEntries);
-        } else {
-          console.error("renderTimetable function not available");
-        }
+        deptCounts.undefined++;
       }
-    } catch (error) {
-      console.error("Error verifying departments:", error);
-      showToastMessage("Error loading timetable data", "error");
+    });
+    
+    hideLoading();
+    
+    // Create report
+    let reportMsg = "Department Statistics:\n";
+    reportMsg += `CS: ${deptCounts.cs}\n`;
+    reportMsg += `Engineering: ${deptCounts.eng}\n`;
+    reportMsg += `Pharmacy: ${deptCounts.pharm}\n`;
+    reportMsg += `Undefined: ${deptCounts.undefined}\n`;
+    
+    alert(reportMsg);
+    
+    // If there are undefined entries, suggest fixing
+    if (deptCounts.undefined > 0) {
+      if (confirm("Found entries with missing department data. Fix them now?")) {
+        fixExistingEntries();
+      }
     }
-  };
-  
-  // Run the verification
-  setTimeout(verifyDepartments, 1000); // Give Firebase time to initialize fully
+  } catch (error) {
+    hideLoading();
+    handleError(error, "verifyDepartments");
+  }
 }
 
-// Add this function to handle entry filtering
-function setupEntryFilters() {
-    const searchInput = document.getElementById('entriesSearch');
-    const deptFilter = document.getElementById('deptFilter');
-    const sessionFilter = document.getElementById('sessionFilter');
-    const dayFilter = document.getElementById('dayFilter');
-    const resetFiltersBtn = document.getElementById('resetFilters');
-    
-    if (!searchInput || !deptFilter || !sessionFilter || !dayFilter || !resetFiltersBtn) {
-        console.log("Filter elements not found, skipping filter setup");
-        return;
-    }
-    
-    // Populate the session filter with available sessions
-    function populateSessionFilter() {
-        // Clear existing options except the first one
-        while (sessionFilter.options.length > 1) {
-            sessionFilter.remove(1);
-        }
-        
-        // Get unique sessions from entries
-        const entries = window.allTimetableEntries || [];
-        const uniqueSessions = [...new Set(entries.map(entry => entry.session))].sort((a, b) => b - a); // Newest first
-        
-        // Add session options
-        uniqueSessions.forEach(session => {
-            const option = document.createElement('option');
-            option.value = session;
-            option.textContent = `Session ${session} (${getSessionName(session)})`;
-            sessionFilter.appendChild(option);
-        });
-    }
-    
-    // Apply filters to entries
-    function applyFilters() {
-        const entries = window.allTimetableEntries || [];
-        if (entries.length === 0) return;
-        
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        const department = deptFilter.value;
-        const session = sessionFilter.value;
-        const day = dayFilter.value;
-        
-        // Filter entries based on criteria
-        const filteredEntries = entries.filter(entry => {
-            // Search term filter (check multiple fields)
-            const matchesSearch = searchTerm === '' || 
-                entry.courseCode?.toLowerCase().includes(searchTerm) || 
-                entry.courseName?.toLowerCase().includes(searchTerm) || 
-                entry.teacherName?.toLowerCase().includes(searchTerm) ||
-                entry.venue?.toLowerCase().includes(searchTerm);
-            
-            // Department filter
-            const matchesDept = department === '' || entry.department === department;
-            
-            // Session filter
-            const matchesSession = session === '' || entry.session === session;
-            
-            // Day filter
-            const matchesDay = day === '' || entry.day === day;
-            
-            return matchesSearch && matchesDept && matchesSession && matchesDay;
-        });
-        
-        // Display filtered entries
-        displayEntriesInAdmin(filteredEntries);
-        
-        // Update filter count
-        const totalCount = entries.length;
-        const filteredCount = filteredEntries.length;
-        
-        // Only show count if filtering is active
-        if (searchTerm || department || session || day) {
-            const countDisplay = document.createElement('div');
-            countDisplay.id = 'filter-count';
-            countDisplay.style.margin = '10px 0';
-            countDisplay.style.fontSize = '14px';
-            countDisplay.style.color = '#555';
-            countDisplay.textContent = `Showing ${filteredCount} of ${totalCount} entries`;
-            
-            // Remove existing count display if present
-            const existingCount = document.getElementById('filter-count');
-            if (existingCount) existingCount.remove();
-            
-            // Add new count display before the table
-            const tableContainer = document.querySelector('.table-container');
-            if (tableContainer) {
-                tableContainer.parentNode.insertBefore(countDisplay, tableContainer);
-            }
-        } else {
-            // Remove count display when no filters are active
-            const existingCount = document.getElementById('filter-count');
-            if (existingCount) existingCount.remove();
-        }
-    }
-    
-    // Reset filters
-    function resetFilters() {
-        searchInput.value = '';
-        deptFilter.selectedIndex = 0;
-        sessionFilter.selectedIndex = 0;
-        dayFilter.selectedIndex = 0;
-        applyFilters();
-    }
-    
-    // Set up event listeners
-    searchInput.addEventListener('input', applyFilters);
-    deptFilter.addEventListener('change', applyFilters);
-    sessionFilter.addEventListener('change', applyFilters);
-    dayFilter.addEventListener('change', applyFilters);
-    resetFiltersBtn.addEventListener('click', resetFilters);
-    
-    // Initial population of session filter
-    populateSessionFilter();
-    
-    // Make the function globally available
-    window.populateSessionFilter = populateSessionFilter;
-}
+// Make functions globally available
+window.setupAndVerifyDepartmentEntries = setupAndVerifyDepartmentEntries;
+window.fixExistingEntries = fixExistingEntries;
+window.handleFormSubmit = handleFormSubmit;
