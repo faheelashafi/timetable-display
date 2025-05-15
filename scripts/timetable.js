@@ -182,7 +182,7 @@ function handleGeneratePdf() {
   }
 }
 
-// Updated generatePDF function to show all timetables first, then all course details
+// Updated generatePDF function to match the timetable display logic
 async function generatePDF(department = 'all') {
   try {
     if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -204,16 +204,12 @@ async function generatePDF(department = 'all') {
       allEntries : 
       allEntries.filter(e => e.department === department);
     
-    // Add this at the beginning of the generatePDF function
-    console.log("===== PDF GENERATION DEBUG =====");
-    console.log("Start time:", startTime);
-    console.log("End time:", endTime);
-    console.log("Time slots:", timeSlots);
-    console.log("All entries:", entries.length);
-    entries.forEach(e => {
-      console.log(`Entry ${e.courseCode}: ${e.startTime}-${e.endTime} (${e.day}, ${e.session})`);
-    });
-
+    // Clean any problematic course codes
+    const cleanedEntries = entries.map(entry => ({
+      ...entry,
+      courseCode: entry.courseCode.replace(/,\s*$/, '')
+    }));
+    
     // Set the department name for header
     const departmentNames = {
       'cs': 'Computer Science & IT',
@@ -256,7 +252,7 @@ async function generatePDF(department = 'all') {
     
     // Group entries by session for better organization
     const sessionGroups = {};
-    entries.forEach(entry => {
+    cleanedEntries.forEach(entry => {
       if (!sessionGroups[entry.session]) {
         sessionGroups[entry.session] = [];
       }
@@ -270,22 +266,74 @@ async function generatePDF(department = 'all') {
     const startTime = localStorage.getItem('timetableStartTime') || '08:00';
     const endTime = localStorage.getItem('timetableEndTime') || '17:00';
     const timeSlots = getDynamicTimeSlots(startTime, endTime);
+
+    // Log debug info after variables are defined
+    console.log("===== PDF GENERATION DEBUG =====");
+    console.log("Start time:", startTime);
+    console.log("End time:", endTime);
+    console.log("Time slots:", timeSlots);
+    console.log("Cleaned entries:", cleanedEntries.length);
     
     // Process each session - TIMETABLES SECTION
     let currentY = startY;
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const sessions = ['2024', '2023', '2022', '2021'];
     
-    // First, render all timetables
+    // Define a consistent grid approach like our timetable display
     for (const session of sortedSessions) {
-      // Create a grid for this session
       const sessionEntries = sessionGroups[session];
       
-      // Create grid header
+      // Create a grid structure for mapping entries - same as in renderTimetable
+      const gridByDay = {};
+      days.forEach(day => {
+        gridByDay[day] = Array(timeSlots.length).fill(null);
+      });
+      
+      // Place entries in the grid
+      sessionEntries.forEach(entry => {
+        if (entry.session !== session) return;
+        
+        // Find the start slot index
+        const startSlotIndex = timeSlots.findIndex(slot => {
+          const slotStartTime = slot.split('-')[0];
+          return normalizeTimeFormat(entry.startTime) === normalizeTimeFormat(slotStartTime);
+        });
+        
+        if (startSlotIndex === -1) {
+          console.warn(`[PDF] No matching slot for ${entry.courseCode} at ${entry.startTime}`);
+          return;
+        }
+        
+        // Calculate how many slots this entry spans
+        const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
+        const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
+        const durationMinutes = entryEndMinutes - entryStartMinutes;
+        const slotSpan = Math.max(Math.ceil(durationMinutes / 30), 1);
+        
+        console.log(`[PDF] Placing ${entry.courseCode} at day=${entry.day}, startSlot=${startSlotIndex}, span=${slotSpan}`);
+        
+        // Place the entry in the grid
+        gridByDay[entry.day][startSlotIndex] = {
+          entry,
+          span: slotSpan,
+          isStart: true
+        };
+        
+        // Mark subsequent slots as taken
+        for (let i = 1; i < slotSpan && startSlotIndex + i < timeSlots.length; i++) {
+          gridByDay[entry.day][startSlotIndex + i] = {
+            entry,
+            isStart: false
+          };
+        }
+      });
+      
+      // Create header for table
       const tableHeader = [
         ['Day', 'Session', ...timeSlots]
       ];
       
-      // Add day rows
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+      // Create body rows using our grid data
       const tableBody = [];
       
       days.forEach(day => {
@@ -294,56 +342,33 @@ async function generatePDF(department = 'all') {
           { content: session, styles: { fillColor: [232, 245, 233] } }
         ];
         
-        // Track what's been rendered to avoid repetition
-        const renderedCells = {};
-        
-        // Add cells for each time slot
-        for (let i = 0; i < timeSlots.length; i++) {
-          const slot = timeSlots[i];
-          const [slotStart, slotEnd] = slot.split('-');
+        // Add content for each time slot using our grid
+        for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex++) {
+          const cellData = gridByDay[day][slotIndex];
           
-          // Skip if this slot is already handled by a previous multi-slot entry
-          const cellKey = `${day}-${i}`;
-          if (renderedCells[cellKey]) {
-            dayRow.push(''); // Push empty content for merged cells
+          // Skip cells that are continuations of entries
+          if (cellData && !cellData.isStart) {
+            // This cell will be covered by a colSpan
             continue;
           }
           
-          // Use the dedicated PDF helper function to find entries for this slot
-          const entry = findEntryForTimeSlot(
-            sessionEntries.filter(e => e.day === day && e.session === session),
-            slotStart,
-            slotEnd
-          );
-          
-          if (entry) {
-            // Calculate span based on duration
-            const entryStartMinutes = convertToMinutes(normalizeTimeFormat(entry.startTime));
-            const entryEndMinutes = convertToMinutes(normalizeTimeFormat(entry.endTime));
-            const durationMinutes = entryEndMinutes - entryStartMinutes;
-            let span = Math.ceil(durationMinutes / 30); // Each slot is 30 minutes
+          if (cellData && cellData.isStart) {
+            // This is an entry's starting cell
+            const entry = cellData.entry;
             
-            // Ensure minimum span of 1
-            if (span < 1) span = 1;
-            
-            // Mark the cells this entry spans as handled
-            for (let j = 1; j < span && (i + j) < timeSlots.length; j++) {
-              renderedCells[`${day}-${i + j}`] = true;
-            }
-            
-            // Add the course cell with appropriate colSpan
             dayRow.push({
               content: entry.isLab ? `${entry.courseCode} Lab` : entry.courseCode,
-              colSpan: span,
+              colSpan: cellData.span,
               styles: {
                 fillColor: entry.isLab ? [255, 248, 225] : 
-                            entry.department === 'cs' ? [225, 245, 254] : 
-                            entry.department === 'eng' ? [232, 245, 233] : 
-                            entry.department === 'pharm' ? [255, 243, 224] : [245, 245, 245]
+                          entry.department === 'cs' ? [225, 245, 254] : 
+                          entry.department === 'eng' ? [232, 245, 233] : 
+                          entry.department === 'pharm' ? [255, 243, 224] : [245, 245, 245]
               }
             });
           } else {
-            dayRow.push(''); // Empty cell
+            // Empty cell
+            dayRow.push('');
           }
         }
         
@@ -356,7 +381,7 @@ async function generatePDF(department = 'all') {
       doc.text(`Session ${session} (${getSessionName(session)})`, 14, currentY);
       currentY += 7;
       
-      // Add the timetable
+      // Add the timetable using autoTable
       doc.autoTable({
         startY: currentY,
         head: tableHeader,
@@ -375,6 +400,12 @@ async function generatePDF(department = 'all') {
         columnStyles: {
           0: { cellWidth: 20 },
           1: { cellWidth: 15 }
+        },
+        didDrawCell: function(data) {
+          // This callback helps detect any cell drawing issues
+          if (data.cell.colSpan > 1) {
+            console.log(`[PDF] Drew cell with colSpan ${data.cell.colSpan} for ${data.cell.text}`);
+          }
         }
       });
       
@@ -388,8 +419,7 @@ async function generatePDF(department = 'all') {
       }
     }
     
-    // Add all course details - DETAILS SECTION
-    // Start on a new page for course details
+    // Add course details section - keep this part as is
     doc.addPage();
     currentY = 20;
     
@@ -419,7 +449,7 @@ async function generatePDF(department = 'all') {
         .sort((a, b) => a.courseCode.localeCompare(b.courseCode))
         .map(entry => [
           entry.courseCode,
-          entry.courseName,
+          entry.courseName || '',
           entry.creditHours || '3',
           entry.teacherName || '',
           entry.venue || ''
@@ -2403,3 +2433,85 @@ window.verifyDepartments = async function() {
 window.setupAndVerifyDepartmentEntries = setupAndVerifyDepartmentEntries;
 window.fixExistingEntries = fixExistingEntries;
 window.handleFormSubmit = handleFormSubmit;
+
+// Add this function to manage the PDF generation button functionality
+function fixPDFGeneration() {
+  // First make sure the button has the correct event listener
+  const generatePdfBtn = document.getElementById('generatePdf');
+  if (generatePdfBtn) {
+    // Remove any existing event listeners by cloning and replacing
+    const newButton = generatePdfBtn.cloneNode(true);
+    generatePdfBtn.parentNode.replaceChild(newButton, generatePdfBtn);
+    
+    // Add a more robust click handler with better error reporting
+    newButton.addEventListener('click', async function(e) {
+      e.preventDefault();
+      console.log("PDF generation button clicked");
+      
+      // Check for jsPDF library
+      if (!window.jspdf || typeof window.jspdf.jsPDF !== 'function') {
+        console.log("jsPDF library not found, attempting to load it");
+        await loadJsPDF();
+      }
+      
+      // Try to generate PDF
+      try {
+        handleGeneratePdf();
+      } catch (error) {
+        console.error("Error in PDF generation:", error);
+        alert("Error generating PDF: " + error.message);
+      }
+    });
+    
+    console.log("PDF generation button handler fixed");
+  } else {
+    console.warn("PDF generation button not found in the DOM");
+  }
+}
+
+// Function to dynamically load jsPDF if needed
+async function loadJsPDF() {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf) {
+      console.log("jsPDF already loaded");
+      resolve();
+      return;
+    }
+    
+    console.log("Loading jsPDF library dynamically");
+    
+    // Create script elements for dependencies
+    const scripts = [
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"
+    ];
+    
+    let loaded = 0;
+    
+    scripts.forEach(src => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      
+      script.onload = () => {
+        loaded++;
+        console.log(`Loaded ${src}, ${loaded}/${scripts.length}`);
+        if (loaded === scripts.length) {
+          console.log("All PDF libraries loaded successfully");
+          resolve();
+        }
+      };
+      
+      script.onerror = () => {
+        reject(new Error(`Failed to load script: ${src}`));
+      };
+      
+      document.head.appendChild(script);
+    });
+  });
+}
+
+// Call this function at the end of your file
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(fixPDFGeneration, 1000); // Wait for everything to be initialized
+});
