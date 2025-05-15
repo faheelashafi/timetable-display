@@ -204,6 +204,16 @@ async function generatePDF(department = 'all') {
       allEntries : 
       allEntries.filter(e => e.department === department);
     
+    // Add this at the beginning of the generatePDF function
+    console.log("===== PDF GENERATION DEBUG =====");
+    console.log("Start time:", startTime);
+    console.log("End time:", endTime);
+    console.log("Time slots:", timeSlots);
+    console.log("All entries:", entries.length);
+    entries.forEach(e => {
+      console.log(`Entry ${e.courseCode}: ${e.startTime}-${e.endTime} (${e.day}, ${e.session})`);
+    });
+
     // Set the department name for header
     const departmentNames = {
       'cs': 'Computer Science & IT',
@@ -550,36 +560,35 @@ function convertToMinutes(timeString) {
     return (hours * 60) + minutes;
 }
 
-// Fix the isEntryInTimeSlot function to handle both exact start time and time spans
+// Fix the isEntryInTimeSlot function with proper time comparison
 function isEntryInTimeSlot(entry, slotStart, mode = 'exact') {
     // Normalize times for consistency
     const entryStartTime = normalizeTimeFormat(entry.startTime);
     const entryEndTime = normalizeTimeFormat(entry.endTime);
     
-    // DEBUG: Log the actual times being compared
+    // For debugging
     console.log(`Entry ${entry.courseCode}: ${entryStartTime}-${entryEndTime}, Slot: ${slotStart}`);
     
-    // Convert to minutes for easier comparison
+    // Direct string comparison first for 'exact' mode - this should work if formats match
+    if (mode === 'exact' && entryStartTime === slotStart) {
+        return true;
+    }
+    
+    // Convert to minutes for numeric comparison
     const entryStartMinutes = convertToMinutes(entryStartTime);
     const entryEndMinutes = convertToMinutes(entryEndTime);
     const slotStartMinutes = convertToMinutes(slotStart);
-    const slotEndMinutes = slotStartMinutes + 30; // Default 30-minute slots
+    const slotEndMinutes = slotStartMinutes + 30;
     
-    console.log(`Minutes - Entry: ${entryStartMinutes}-${entryEndMinutes}, Slot: ${slotStartMinutes}-${slotEndMinutes}`);
-    
+    // For 'exact' mode, they should match exactly - no adjustments
     if (mode === 'exact') {
-        // For finding the starting slot, check exact match with start time
-        const isExactMatch = entryStartMinutes === slotStartMinutes;
-        console.log(`Exact match? ${isExactMatch}`);
-        return isExactMatch;
+        return entryStartMinutes === slotStartMinutes;
     } else if (mode === 'span') {
-        // For calculating spans, check if entry covers this time slot
-        // Entry must start before or at slot start AND end after slot start
+        // For calculating spans, check if slot is contained within entry
         return entryStartMinutes <= slotStartMinutes && entryEndMinutes > slotStartMinutes;
     } else {
-        // For overlap detection (used elsewhere)
-        // Check if there's any overlap between entry and slot
-        return (entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes);
+        // For overlap detection
+        return entryStartMinutes < slotEndMinutes && entryEndMinutes > slotStartMinutes;
     }
 }
 
@@ -596,6 +605,10 @@ function getAllTimeSlots(entries) {
 function getDynamicTimeSlots(startTime, endTime) {
     console.log(`Generating time slots from ${startTime} to ${endTime}`);
     const slots = [];
+    
+    // Ensure normalized input
+    startTime = normalizeTimeFormat(startTime);
+    endTime = normalizeTimeFormat(endTime);
     
     // Convert to minutes for easier calculation
     const startMinutes = convertToMinutes(startTime);
@@ -1378,12 +1391,12 @@ function findEntryForTimeSlot(entries, slotStart, slotEnd) {
   const normalizedSlotStart = normalizeTimeFormat(slotStart);
   const normalizedSlotEnd = normalizeTimeFormat(slotEnd || '');
   const slotStartMins = convertToMinutes(normalizedSlotStart);
-  const slotEndMins = slotStartMins + 30; // Default 30-minute slots
+  const slotEndMins = slotStartMins + 30;
   
   // First look for an entry that starts exactly at this slot
   let entry = entries.find(e => {
-    const entryStart = normalizeTimeFormat(e.startTime);
-    return entryStart === normalizedSlotStart;
+    const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
+    return entryStartMins === slotStartMins;
   });
   
   if (!entry) {
@@ -1392,8 +1405,7 @@ function findEntryForTimeSlot(entries, slotStart, slotEnd) {
       const entryStartMins = convertToMinutes(normalizeTimeFormat(e.startTime));
       const entryEndMins = convertToMinutes(normalizeTimeFormat(e.endTime));
       
-      // Check if there's any overlap:
-      // Entry starts before slot ends AND entry ends after slot starts
+      // Check if there's any overlap
       return entryStartMins < slotEndMins && entryEndMins > slotStartMins;
     });
   }
@@ -2263,7 +2275,7 @@ function setupAndVerifyDepartmentEntries() {
       
       // Filter by department
       const filteredEntries = entries.filter(entry => entry.department === department);
-      console.log(`Filtered from ${entries.length} to ${filteredEntries.length} entries for ${department}`);
+      console.log(`Filtered from ${entries.length} to ${filteredEntries.length} for ${department}`);
       
       if (filteredEntries.length === 0) {
         // No entries for this department, show message
